@@ -1,0 +1,79 @@
+const db = require("../config/db");
+
+const UserModel = {
+
+    findAll: (callback) => {
+        const query = `
+            SELECT id_Usuarios_Restaurante, Nombre, Apellido, Email, id_Roles_Usuarios
+            FROM usuarios_restaurante
+        `;
+        db.query(query, callback);
+    },
+
+    findById: (id, callback) => {
+        const query = `
+            SELECT id_Usuarios_Restaurante, Nombre, Apellido, Email, id_Roles_Usuarios
+            FROM usuarios_restaurante
+            WHERE id_Usuarios_Restaurante = ?
+        `;
+        db.query(query, [id], callback);
+    },
+
+    findByEmail: (email, callback) => {
+        const query = `
+            SELECT id_Usuarios_Restaurante, Nombre, Apellido, Email, Contraseña_hash, id_Roles_Usuarios
+            FROM usuarios_restaurante
+            WHERE Email = ?
+        `;
+        db.query(query, [email], callback);
+    },
+
+    create: (userData, callback) => {
+        const query = `
+            INSERT INTO usuarios_restaurante 
+                (Nombre, Apellido, Email, Contraseña_hash, id_Tipo_Documento, id_Roles_Usuarios)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        const valores = [
+            userData.nombre,
+            userData.apellido,
+            userData.email,
+            userData.hashedPassword,
+            userData.tipoDocId,
+            userData.rolId
+        ];
+        db.query(query, valores, callback);
+    },
+
+    // Actualiza sin tocar la contraseña
+    update: (id, campos, callback) => {
+        const query = `
+            UPDATE usuarios_restaurante
+            SET Nombre = ?, Apellido = ?, Email = ?, id_Roles_Usuarios = ?
+            WHERE id_Usuarios_Restaurante = ?
+        `;
+        const valores = [campos.nombre, campos.apellido, campos.email, campos.rolId, id];
+        db.query(query, valores, callback);
+    },
+
+    // FIX: actualiza incluyendo nueva contraseña hasheada
+    updateConPassword: (id, campos, callback) => {
+        const query = `
+            UPDATE usuarios_restaurante
+            SET Nombre = ?, Apellido = ?, Email = ?, id_Roles_Usuarios = ?, Contraseña_hash = ?
+            WHERE id_Usuarios_Restaurante = ?
+        `;
+        const valores = [campos.nombre, campos.apellido, campos.email, campos.rolId, campos.hashedPassword, id];
+        db.query(query, valores, callback);
+    },
+
+    delete: (id, callback) => {
+        const query = `
+            DELETE FROM usuarios_restaurante
+            WHERE id_Usuarios_Restaurante = ?
+        `;
+        db.query(query, [id], callback);
+    }
+};
+
+module.exports = UserModel;

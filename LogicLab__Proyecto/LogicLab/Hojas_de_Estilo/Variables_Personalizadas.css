@@ -1,0 +1,18 @@
+:root {
+  /* Colores Principales Mangata */
+  --color-primario: #d48037;      /* Naranja/Café principal */
+  --color-primario-hover: #ff6600;
+  --color-cafe-staff: #b59981;    /* Café de los formularios */
+  --color-cafe-claro: #e6d2c1;    /* Botones claros */
+  
+  /* Colores de Estado */
+  --color-fondo-oscuro: #1a1a1a;
+  --color-disponible: #2ecc71;
+  --color-ocupado: #e74c3c;
+  --color-texto-claro: #ffffff;
+  --color-texto-gris: #bbbbbb;
+
+  /* Fondos e Imágenes */
+  --fondo-principal: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.85)), url('/Fondo.jpg');
+  --blur-efecto: blur(10px);
+}
