@@ -17,17 +17,16 @@ const PlatoController = {
     },
 
     createPlato: (req, res) => {
-        const { nombre, descripcion, precio, id_Categoria } = req.body;
+        const { nombre, descripcion, precio, id_Categoria, disponible } = req.body;
 
         if (!nombre || !precio || !id_Categoria)
             return res.status(400).json({ message: "Nombre, precio y categoría son obligatorios" });
 
-        PlatoModel.create({ nombre, descripcion, precio, id_Categoria }, (err, result) => {
+        PlatoModel.create({ nombre, descripcion, precio, id_Categoria, disponible }, (err, result) => {
             if (err) return res.status(500).json({ error: "Error al crear el plato" });
-            // ── Devolvemos el id del plato recién insertado ──
             res.status(201).json({
                 message: "Plato creado correctamente",
-                id: result.insertId          // MySQL devuelve insertId en el resultado
+                id: result.insertId
             });
         });
     },
@@ -49,6 +48,38 @@ const PlatoController = {
         PlatoModel.update(id, { descripcion, precio }, (err) => {
             if (err) return res.status(500).json({ error: "Error al actualizar el plato" });
             res.status(200).json({ message: "Plato actualizado correctamente" });
+        });
+    },
+
+    toggleDisponibilidad: (req, res) => {
+        const { id } = req.params;
+        const { disponible } = req.body;
+
+        if (disponible === undefined) {
+            return res.status(400).json({ message: "El campo 'disponible' es obligatorio" });
+        }
+
+        PlatoModel.updateDisponibilidad(id, disponible, (err) => {
+            if (err) return res.status(500).json({ error: "Error al actualizar la disponibilidad" });
+            res.status(200).json({ message: "Disponibilidad actualizada correctamente" });
+        });
+    },
+
+    // PUT /api/categorias/desactivar/:id (admin)
+    desactivarCategoria: (req, res) => {
+        const { id } = req.params;
+        PlatoModel.desactivarCategoria(id, (err) => {
+            if (err) return res.status(500).json({ error: "Error al desactivar la categoría" });
+            res.status(200).json({ message: "Categoría desactivada correctamente" });
+        });
+    },
+
+    // PUT /api/categorias/reactivar/:id (admin)
+    reactivarCategoria: (req, res) => {
+        const { id } = req.params;
+        PlatoModel.reactivarCategoria(id, (err) => {
+            if (err) return res.status(500).json({ error: "Error al reactivar la categoría" });
+            res.status(200).json({ message: "Categoría reactivada correctamente" });
         });
     }
 };

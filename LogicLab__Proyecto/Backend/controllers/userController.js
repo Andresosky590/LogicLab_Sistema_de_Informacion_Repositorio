@@ -10,6 +10,14 @@ const UserController = {
         });
     },
 
+    // GET /api/usuarios/listar-todos (admin) — incluye usuarios inactivos
+    getUsersConInactivos: (req, res) => {
+        UserService.getAllUsersConInactivos((err, results) => {
+            if (err) return res.status(500).json({ error: "Error interno del servidor" });
+            res.status(200).json(results);
+        });
+    },
+
     getUserById: (req, res) => {
         const { id } = req.params;
         UserService.getUserById(id, (err, results) => {
@@ -68,11 +76,21 @@ const UserController = {
         });
     },
 
+    // Ya no borra físicamente — desactiva al usuario (borrado lógico)
     deleteUser: (req, res) => {
         const { id } = req.params;
         UserService.deleteUser(id, (err) => {
-            if (err) return res.status(500).json({ error: "Error al eliminar el usuario" });
-            res.status(200).json({ message: "Usuario eliminado correctamente" });
+            if (err) return res.status(500).json({ error: "Error al desactivar el usuario" });
+            res.status(200).json({ message: "Usuario desactivado correctamente" });
+        });
+    },
+
+    // PUT /api/usuarios/reactivar/:id (admin)
+    reactivarUsuario: (req, res) => {
+        const { id } = req.params;
+        UserService.reactivarUsuario(id, (err) => {
+            if (err) return res.status(500).json({ error: "Error al reactivar el usuario" });
+            res.status(200).json({ message: "Usuario reactivado correctamente" });
         });
     }
 };

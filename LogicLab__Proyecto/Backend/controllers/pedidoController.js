@@ -1,8 +1,10 @@
 const PedidoModel = require("../models/pedidoModel");
 const DetalleModel = require("../models/detalleModel");
+const MesaModel = require("../models/mesaModel");
 
 const PedidoController = {
 
+    
     // GET /api/pedidos/listar
     getPedidos: (req, res) => {
         PedidoModel.findAll((err, results) => {
@@ -72,46 +74,63 @@ const PedidoController = {
 
     // POST /api/pedidos/crear
     // Body: { idMesa, idUsuario, totalPagar, items: [{idPlato, nombrePlato, cantidadPedido, notasEspeciales, precioFinal, idCategoria}] }
-    crearPedido: (req, res) => {
-        const { idMesa, idUsuario, totalPagar, items } = req.body;
-
+        crearPedido: (req, res) => {
+        const { idMesa, totalPagar, items } = req.body;
+        const esMeseroAutenticado = !!(req.usuario && req.usuario.rolId === 1);
+        const idUsuario = esMeseroAutenticado ? req.usuario.id : null;
+ 
         if (!idMesa || !totalPagar || !items || items.length === 0) {
             return res.status(400).json({ message: "Faltan datos obligatorios" });
         }
-
+ 
         // 1. Crear el pedido
-        PedidoModel.create({ totalPagar, idUsuario: idUsuario || null }, (err, result) => {
+        PedidoModel.create({ totalPagar, idUsuario }, (err, result) => {
             if (err) return res.status(500).json({ error: "Error al crear el pedido" });
-
+ 
             const idPedido = result.insertId;
-
+ 
             // 2. Vincular con la mesa en Mesas_Pedidos
             PedidoModel.vincularMesa(idPedido, idMesa, (err) => {
                 if (err) return res.status(500).json({ error: "Error al vincular mesa" });
-
-                // 3. Insertar cada ítem en Detalle_Pedidos
-                let insertados = 0;
-                for (const item of items) {
-                    const detalle = {
-                        cantidadPedido: item.cantidadPedido,
-                        nombrePlato: item.nombrePlato,
-                        notasEspeciales: item.notasEspeciales || null,
-                        precioFinal: item.precioFinal,
-                        idPedido: idPedido,
-                        idPlato: item.idPlato,
-                        idCategoria: item.idCategoria
-                    };
-
-                    DetalleModel.create(detalle, (err) => {
-                        if (err) return res.status(500).json({ error: "Error al guardar detalle" });
-                        insertados++;
-                        if (insertados === items.length) {
-                            res.status(201).json({
-                                message: "Pedido creado correctamente",
-                                idPedido
-                            });
-                        }
+ 
+                // 2.5. Si fue un pedido asistido por el mesero, la mesa
+                // nunca pasó por el login/QR del cliente — se marca
+                // ocupada justo aquí. Si fue el cliente, no se toca (ya
+                // quedó "ocupada" cuando eligió su mesa en el login).
+                const continuarConDetalles = () => {
+                    // 3. Insertar cada ítem en Detalle_Pedidos
+                    let insertados = 0;
+                    for (const item of items) {
+                        const detalle = {
+                            cantidadPedido: item.cantidadPedido,
+                            nombrePlato: item.nombrePlato,
+                            notasEspeciales: item.notasEspeciales || null,
+                            precioFinal: item.precioFinal,
+                            idPedido: idPedido,
+                            idPlato: item.idPlato,
+                            idCategoria: item.idCategoria
+                        };
+ 
+                        DetalleModel.create(detalle, (err) => {
+                            if (err) return res.status(500).json({ error: "Error al guardar detalle" });
+                            insertados++;
+                            if (insertados === items.length) {
+                                res.status(201).json({
+                                    message: "Pedido creado correctamente",
+                                    idPedido
+                                });
+                            }
+                        });
+                    }
+                };
+ 
+                if (esMeseroAutenticado) {
+                    MesaModel.updateEstado(idMesa, "ocupada", (err) => {
+                        if (err) return res.status(500).json({ error: "Error al ocupar la mesa" });
+                        continuarConDetalles();
                     });
+                } else {
+                    continuarConDetalles();
                 }
             });
         });

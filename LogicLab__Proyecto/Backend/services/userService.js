@@ -10,6 +10,11 @@ const UserService = {
         UserModel.findAll(callback);
     },
 
+    // Para el admin: ver también los usuarios inactivos (historial)
+    getAllUsersConInactivos: (callback) => {
+        UserModel.findAllConInactivos(callback);
+    },
+
     getUserById: (id, callback) => {
         UserModel.findById(id, callback);
     },
@@ -41,6 +46,13 @@ const UserService = {
                 return callback({ status: 401, message: "Credenciales inválidas" });
 
             const usuario = results[0];
+
+            // Un usuario desactivado (ej. empleado que ya no trabaja aquí)
+            // no puede volver a iniciar sesión, aunque su registro siga existiendo.
+            if (usuario.Activo === 0) {
+                return callback({ status: 403, message: "Este usuario está inactivo" });
+            }
+
             bcrypt.compare(password, usuario.Contraseña_hash, (err, passwordCorrecto) => {
                 if (err) return callback(err);
                 if (!passwordCorrecto)
@@ -91,9 +103,14 @@ const UserService = {
         }
     },
 
-    // ── Eliminar usuario ──────────────────────────────────────────────────────
+    // ── "Eliminar" usuario (borrado lógico) ─────────────────────────────────
     deleteUser: (id, callback) => {
         UserModel.delete(id, callback);
+    },
+
+    // ── Reactivar usuario ────────────────────────────────────────────────────
+    reactivarUsuario: (id, callback) => {
+        UserModel.reactivar(id, callback);
     },
 };
 
