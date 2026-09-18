@@ -1,4 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Para las llamadas HTTP al backend y para mostrar las imágenes
+         de los platos (Image.network). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Necesarios para HU05: el admin sube una foto del plato desde
+         la galería o la cámara del celular. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Solo hace falta en Android 12 y anteriores — Android 13+ usa
+         el selector de fotos del sistema, que no requiere permiso. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <application
         android:label="app_movil"
         android:name="${applicationName}"

@@ -166,10 +166,10 @@ class _LoginScreenState extends State<LoginScreen>
                           width: 46,
                           height: 46,
                           decoration: BoxDecoration(
-                            color: _neonRed.withOpacity(0.12),
+                            color: _neonRed.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                              color: _neonRed.withOpacity(0.3),
+                              color: _neonRed.withValues(alpha: 0.3),
                             ),
                           ),
                           child: const Icon(
@@ -252,7 +252,7 @@ class _LoginScreenState extends State<LoginScreen>
                     "RESTAURANTE MANGATA",
                     textAlign: TextAlign.center,
                     style: GoogleFonts.inter(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha: 0.25),
                       fontSize: 11,
                       letterSpacing: 1.5,
                     ),
@@ -331,7 +331,10 @@ class _LoginHeroState extends State<_LoginHero>
               shadows: [
                 Shadow(color: _neonRedGlow, blurRadius: 8),
                 Shadow(color: _neonRedGlow, blurRadius: 26),
-                Shadow(color: _neonBlue.withOpacity(0.45), blurRadius: 10),
+                Shadow(
+                  color: _neonBlue.withValues(alpha: 0.45),
+                  blurRadius: 10,
+                ),
               ],
             ),
           ),
@@ -353,12 +356,12 @@ class _LoginCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.5),
+            color: Colors.black.withValues(alpha: 0.5),
             blurRadius: 60,
             offset: const Offset(0, 30),
           ),
           BoxShadow(
-            color: _neonRedGlow.withOpacity(0.35),
+            color: _neonRedGlow.withValues(alpha: 0.35),
             blurRadius: 50,
             spreadRadius: -12,
           ),
@@ -373,7 +376,7 @@ class _LoginCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: _glass,
               borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: _neonRed.withOpacity(0.35)),
+              border: Border.all(color: _neonRed.withValues(alpha: 0.35)),
             ),
             child: child,
           ),
@@ -429,14 +432,19 @@ class _NeonTextFieldState extends State<_NeonTextField> {
       duration: const Duration(milliseconds: 220),
       decoration: BoxDecoration(
         color: _focused
-            ? _neonRed.withOpacity(0.06)
-            : Colors.white.withOpacity(0.04),
+            ? _neonRed.withValues(alpha: 0.06)
+            : Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(50),
         border: Border.all(
-          color: _focused ? _neonRed : Colors.white.withOpacity(0.12),
+          color: _focused ? _neonRed : Colors.white.withValues(alpha: 0.12),
         ),
         boxShadow: _focused
-            ? [BoxShadow(color: _neonRed.withOpacity(0.18), blurRadius: 14)]
+            ? [
+                BoxShadow(
+                  color: _neonRed.withValues(alpha: 0.18),
+                  blurRadius: 14,
+                ),
+              ]
             : [],
       ),
       child: TextField(
@@ -449,7 +457,7 @@ class _NeonTextFieldState extends State<_NeonTextField> {
         decoration: InputDecoration(
           hintText: widget.hint,
           hintStyle: GoogleFonts.inter(
-            color: Colors.white.withOpacity(0.35),
+            color: Colors.white.withValues(alpha: 0.35),
             fontSize: 14.5,
           ),
           prefixIcon: Icon(widget.icon, color: _inkDim, size: 19),
@@ -492,7 +500,7 @@ class _NeonButton extends StatelessWidget {
             ),
             boxShadow: [
               BoxShadow(
-                color: _neonRed.withOpacity(0.5),
+                color: _neonRed.withValues(alpha: 0.5),
                 blurRadius: 24,
                 offset: const Offset(0, 10),
               ),
@@ -562,7 +570,10 @@ class _NeonOrb extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: RadialGradient(
-                colors: [color.withOpacity(opacity), color.withOpacity(0.0)],
+                colors: [
+                  color.withValues(alpha: opacity),
+                  color.withValues(alpha: 0.0),
+                ],
               ),
             ),
           ),

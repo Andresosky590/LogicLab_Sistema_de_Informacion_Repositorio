@@ -162,26 +162,22 @@ function Menus() {
         }
         cargarDatos()
 
-        const guardado = localStorage.getItem("menuDelDia")
-        if (guardado) {
+        // El menú publicado ahora vive en el backend, no en localStorage
+        // (localStorage es por navegador/dispositivo y no lo ve ni el
+        // mesero en su celular ni la app Flutter).
+        const cargarMenuHoy = async () => {
             try {
-                const arr = JSON.parse(guardado)
-                if (Array.isArray(arr)) {
-                    setPlatosMenu(arr.filter(p => String(p.id_Categoria) !== "1"))
+                const res = await axios.get(`${API}/api/menu-dia/hoy`)
+                const menu = res.data
+                if (menu && Array.isArray(menu.items)) {
+                    setPlatosMenu(menu.items.filter(p => p.id_Platos !== 9999))
                     setMenuSubido(true)
                 }
-            } catch(e) {}
+            } catch (err) {
+                // Si falla, simplemente arrancamos con el menú vacío.
+            }
         }
-        const corriente = localStorage.getItem("menuCorriente")
-        if (corriente) {
-            try {
-                const c = JSON.parse(corriente)
-                setSopas(c.sopas || [])
-                setProteinas(c.proteinas || [])
-                setPrincipios(c.principios || [])
-                setAcompanantes(c.acompanantes || [])
-            } catch(e) {}
-        }
+        cargarMenuHoy()
     }, [])
 
     const togglePlato = (plato) => {
@@ -214,25 +210,47 @@ function Menus() {
         }
     }
 
-    const confirmarSubida = () => {
-        localStorage.setItem("menuCorriente", JSON.stringify({ sopas, proteinas, principios, acompanantes }))
+    const confirmarSubida = async () => {
         const corrienteDelDia = construirCorrienteDelDia()
-        const menuFinal = corrienteDelDia
-            ? [corrienteDelDia, ...platosMenu]
-            : [...platosMenu]
-        localStorage.setItem("menuDelDia", JSON.stringify(menuFinal))
-        setModalConfirmar(false)
-        setMenuSubido(true)
+
+        // Los platos reales se identifican por su id_Platos; la Corriente
+        // del Día reutiliza el sentinel 9999 y guarda su descripción armada
+        // como texto (el backend la reconstruye al leer el menú).
+        const items = [
+            ...(corrienteDelDia ? [{
+                id_Platos: 9999,
+                categoria: "Corriente",
+                nombreItem: corrienteDelDia.Descripcion
+            }] : []),
+            ...platosMenu.map(p => ({
+                id_Platos: p.id_Platos,
+                categoria: String(p.id_Categoria),
+                nombreItem: p.NombrePlato
+            }))
+        ]
+
+        try {
+            await axios.post(`${API}/api/menu-dia/publicar`, {
+                precio: PRECIO_CORRIENTE,
+                items
+            })
+            setModalConfirmar(false)
+            setMenuSubido(true)
+        } catch (err) {
+            setError("No se pudo publicar el menú del día")
+            setModalConfirmar(false)
+        }
     }
 
-    const limpiarTodo = () => {
+    const limpiarTodo = async () => {
         setSopas([]);        setSelSopa("")
         setProteinas([]);    setSelProteina("")
         setPrincipios([]);   setSelPrincipio("")
         setAcompanantes([]); setSelAcompanante("")
         setPlatosMenu([])
-        localStorage.removeItem("menuDelDia")
-        localStorage.removeItem("menuCorriente")
+        try {
+            await axios.put(`${API}/api/menu-dia/desactivar`)
+        } catch (err) {}
         setMenuSubido(false)
     }
 

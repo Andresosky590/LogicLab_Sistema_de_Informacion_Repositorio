@@ -14,6 +14,7 @@ function PedidoAsistido() {
     const [platos, setPlatos] = useState([])
     const [categorias, setCategorias] = useState([])
     const [metodosPago, setMetodosPago] = useState([])
+    const [menuDelDia, setMenuDelDia] = useState([])
 
     const [mesaSeleccionada, setMesaSeleccionada] = useState(null)
     const [carrito, setCarrito] = useState([])
@@ -32,12 +33,13 @@ function PedidoAsistido() {
 
             try {
 
-                const [resMesas, resPlatos, resCategorias, resMetodos] =
+                const [resMesas, resPlatos, resCategorias, resMetodos, resMenuDia] =
                     await Promise.all([
                         axios.get(`${API}/api/mesas/listar`),
                         axios.get(`${API}/api/platos/listar`),
                         axios.get(`${API}/api/categorias/listar`),
-                        axios.get(`${API}/api/metodo-pago/listar`)
+                        axios.get(`${API}/api/metodo-pago/listar`),
+                        axios.get(`${API}/api/menu-dia/hoy`)
                     ])
 
                 setMesas(resMesas.data)
@@ -49,6 +51,10 @@ function PedidoAsistido() {
                 setCategorias(resCategorias.data)
 
                 setMetodosPago(resMetodos.data)
+
+                if (resMenuDia.data && Array.isArray(resMenuDia.data.items)) {
+                    setMenuDelDia(resMenuDia.data.items)
+                }
 
             } catch (error) {
 
@@ -74,38 +80,14 @@ function PedidoAsistido() {
     // ─────────────────────────────────────────────
 
     /*
-       El administrador ya guarda el menú publicado
-       en localStorage con la clave "menuDelDia".
+       El menú publicado se trae del backend (GET /api/menu-dia/hoy)
+       junto con el resto de los datos, en el mismo useEffect de arriba.
 
        De esta manera Pedido Asistido muestra exactamente
-       los mismos platos que aparecen en Menú del Día.
+       los mismos platos que aparecen en Menú del Día, sin
+       depender de localStorage (que no se comparte entre
+       dispositivos/navegadores).
     */
-
-    const menuGuardado =
-        localStorage.getItem("menuDelDia")
-
-    let menuDelDia = []
-
-    if (menuGuardado) {
-
-        try {
-
-            const menuParseado = JSON.parse(menuGuardado)
-
-            if (Array.isArray(menuParseado)) {
-                menuDelDia = menuParseado
-            }
-
-        } catch (error) {
-
-            console.error(
-                "Error leyendo el menú del día:",
-                error
-            )
-
-        }
-    }
-
 
     // Solo dejamos platos disponibles que además
     // pertenecen al menú publicado.

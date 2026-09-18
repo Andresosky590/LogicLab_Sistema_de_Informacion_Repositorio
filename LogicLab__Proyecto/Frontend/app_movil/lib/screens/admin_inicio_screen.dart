@@ -350,49 +350,82 @@ class _MenuDiaCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
 
                   children: [
-                    ...menu!.itemsPorCategoria.entries.map<Widget>((entry) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
+                    if (menu!.items.any((i) => i.esCorriente))
+                      _MenuDiaGrupo(
+                        etiqueta: "Corriente del Día",
+                        lineas: [
+                          menu!.items
+                                  .firstWhere((i) => i.esCorriente)
+                                  .descripcion ??
+                              "",
+                        ],
+                      ),
 
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-
-                          children: [
-                            Text(
-                              entry.key.toUpperCase(),
-
-                              style: GoogleFonts.spaceGrotesk(
-                                color: _aMuted,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1,
-                              ),
-                            ),
-
-                            const SizedBox(height: 4),
-
-                            ...entry.value.map((nombre) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 2),
-
-                                child: Text(
-                                  nombre,
-
-                                  style: GoogleFonts.inter(
-                                    color: Colors.white,
-                                    fontSize: 12.5,
-                                  ),
-                                ),
-                              );
-                            }),
-                          ],
-                        ),
-                      );
-                    }),
+                    if (menu!.items.any((i) => !i.esCorriente))
+                      _MenuDiaGrupo(
+                        etiqueta: "Platos y Bebidas",
+                        lineas: menu!.items
+                            .where((i) => !i.esCorriente)
+                            .map((i) => i.nombrePlato)
+                            .toList(),
+                      ),
                   ],
                 ),
               ),
             ),
+    );
+  }
+}
+
+// ================================================================
+// GRUPO DENTRO DE LA TARJETA DE MENÚ DEL DÍA
+// ================================================================
+//
+// El modelo ya no agrupa los ítems por categoría de texto libre
+// (eso era del esquema viejo, antes de conectar con los platos
+// reales) — ahora solo distinguimos "Corriente del Día" del resto
+// de platos/bebidas seleccionados.
+class _MenuDiaGrupo extends StatelessWidget {
+  final String etiqueta;
+  final List<String> lineas;
+
+  const _MenuDiaGrupo({required this.etiqueta, required this.lineas});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          Text(
+            etiqueta.toUpperCase(),
+
+            style: GoogleFonts.spaceGrotesk(
+              color: _aMuted,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          ...lineas.map((nombre) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 2),
+
+              child: Text(
+                nombre,
+
+                style: GoogleFonts.inter(color: Colors.white, fontSize: 12.5),
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 }

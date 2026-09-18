@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../controllers/auth_controller.dart';
 import '../screens/admin_placeholder_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/menu_dia_screen.dart';
 import '../screens/platos_screen.dart';
 
 // ================================================================
@@ -77,10 +78,7 @@ class AdminDrawer extends StatelessWidget {
           icono: Icons.people_outline_rounded,
         );
       case "Menús":
-        pantalla = const AdminPlaceholderScreen(
-          titulo: "Menús",
-          icono: Icons.menu_book_outlined,
-        );
+        pantalla = const MenuDiaScreen();
       case "Reportes":
         pantalla = const AdminPlaceholderScreen(
           titulo: "Reportes",

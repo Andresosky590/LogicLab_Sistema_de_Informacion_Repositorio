@@ -1,5 +1,5 @@
-// Representa el "Corriente del día" y coincide con lo que devuelve
-// GET /api/menu-dia/hoy: { id_Menu, Fecha, Precio, activo, items: [...] }
+// Representa el menú del día y coincide con lo que devuelve
+// GET /api/menu-dia/hoy: { id_Menu, Fecha, Precio, activo, items: [...] }.
 // El backend responde `null` (200 OK) cuando el admin aún no ha publicado
 // el menú de hoy — eso se maneja como MenuDia? nulo, no como error.
 class MenuDia {
@@ -15,18 +15,6 @@ class MenuDia {
     required this.items,
   });
 
-  // Agrupa los ítems por categoría (Sopa, Principio, Proteína, ...) tal como
-  // los arma Admin/Menus.jsx en la web.
-  Map<String, List<String>> get itemsPorCategoria {
-    final Map<String, List<String>> agrupado = {};
-
-    for (final item in items) {
-      agrupado.putIfAbsent(item.categoria, () => []).add(item.nombreItem);
-    }
-
-    return agrupado;
-  }
-
   factory MenuDia.fromJson(Map<String, dynamic> json) {
     return MenuDia(
       id: json['id_Menu'],
@@ -39,16 +27,37 @@ class MenuDia {
   }
 }
 
+// Cada ítem del menú es, o bien un plato real de la carta (id_Platos
+// coincide con un Plato de /api/platos/listar), o la "Corriente del Día",
+// que reutiliza el sentinel id_Platos = 9999 (no es un plato real: se
+// arma con las sopas/proteínas/principios/acompañantes que eligió el
+// admin, igual que en la web).
 class MenuDiaItem {
-  final String categoria;
-  final String nombreItem;
+  static const int idCorriente = 9999;
 
-  MenuDiaItem({required this.categoria, required this.nombreItem});
+  final int idPlatos;
+  final String nombrePlato;
+  final String? descripcion;
+  final double precio;
+  final int idCategoria;
+
+  MenuDiaItem({
+    required this.idPlatos,
+    required this.nombrePlato,
+    required this.descripcion,
+    required this.precio,
+    required this.idCategoria,
+  });
+
+  bool get esCorriente => idPlatos == idCorriente;
 
   factory MenuDiaItem.fromJson(Map<String, dynamic> json) {
     return MenuDiaItem(
-      categoria: json['Categoria'] ?? "",
-      nombreItem: json['NombreItem'] ?? "",
+      idPlatos: json['id_Platos'],
+      nombrePlato: json['NombrePlato'] ?? "",
+      descripcion: json['Descripcion'],
+      precio: double.tryParse(json['Precio'].toString()) ?? 0,
+      idCategoria: json['id_Categoria'],
     );
   }
 }
