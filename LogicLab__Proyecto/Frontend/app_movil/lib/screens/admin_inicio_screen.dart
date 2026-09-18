@@ -4,11 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../controllers/admin_controller.dart';
-import '../controllers/auth_controller.dart';
 import '../models/menu_dia_model.dart';
 import '../models/pqrsf_model.dart';
-import 'admin_placeholder_screen.dart';
-import 'login_screen.dart';
+import '../widgets/admin_drawer.dart';
 
 // ================================================================
 // COLORES
@@ -37,7 +35,6 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   final _adminController = AdminController();
-  final _authController = AuthController();
 
   Timer? _polling;
 
@@ -99,21 +96,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   }
 
   // ==============================================================
-  // CERRAR SESIÓN
-  // ==============================================================
-
-  Future<void> _cerrarSesion() async {
-    await _authController.cerrarSesion();
-
-    if (!mounted) return;
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
-  }
-
-  // ==============================================================
   // BUILD
   // ==============================================================
 
@@ -143,7 +125,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
       // ------------------------------------------------------------
       // DRAWER
       // ------------------------------------------------------------
-      drawer: _AdminDrawer(onCerrarSesion: _cerrarSesion),
+      drawer: const AdminDrawer(seccionActiva: "Panel"),
 
       // ------------------------------------------------------------
       // BODY
@@ -335,247 +317,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
     }
 
     return "\$$buffer";
-  }
-}
-
-// ================================================================
-// DRAWER
-// ================================================================
-
-class _AdminDrawer extends StatelessWidget {
-  final VoidCallback onCerrarSesion;
-
-  const _AdminDrawer({required this.onCerrarSesion});
-
-  @override
-  Widget build(BuildContext context) {
-    return Drawer(
-      backgroundColor: _aBg,
-
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-
-          children: [
-            // ------------------------------------------------------
-            // ENCABEZADO
-            // ------------------------------------------------------
-
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 28),
-
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: _aNeonBorder)),
-              ),
-
-              child: Column(
-                children: [
-                  Text(
-                    "MANGATA",
-                    style: GoogleFonts.unbounded(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 20,
-                      letterSpacing: 1.5,
-
-                      shadows: const [
-                        Shadow(color: _aNeonGlow, blurRadius: 14),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  Text(
-                    "Administrador",
-                    style: GoogleFonts.inter(color: _aMuted, fontSize: 11.5),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // ------------------------------------------------------
-            // PANEL
-            // ------------------------------------------------------
-            _DrawerItem(
-              icono: Icons.grid_view_rounded,
-              label: "Panel",
-              activo: true,
-
-              onTap: () {
-                Navigator.pop(context);
-              },
-            ),
-
-            // ------------------------------------------------------
-            // EMPLEADOS
-            // ------------------------------------------------------
-            _DrawerItem(
-              icono: Icons.people_outline_rounded,
-              label: "Empleados",
-
-              onTap: () {
-                _abrirPlaceholder(
-                  context,
-                  "Empleados",
-                  Icons.people_outline_rounded,
-                );
-              },
-            ),
-
-            // ------------------------------------------------------
-            // PLATOS
-            // ------------------------------------------------------
-            _DrawerItem(
-              icono: Icons.restaurant_menu_rounded,
-              label: "Platos",
-
-              onTap: () {
-                _abrirPlaceholder(
-                  context,
-                  "Platos",
-                  Icons.restaurant_menu_rounded,
-                );
-              },
-            ),
-
-            // ------------------------------------------------------
-            // MENÚS
-            // ------------------------------------------------------
-            _DrawerItem(
-              icono: Icons.menu_book_outlined,
-              label: "Menús",
-
-              onTap: () {
-                _abrirPlaceholder(context, "Menús", Icons.menu_book_outlined);
-              },
-            ),
-
-            // ------------------------------------------------------
-            // REPORTES
-            // ------------------------------------------------------
-            _DrawerItem(
-              icono: Icons.bar_chart_rounded,
-              label: "Reportes",
-
-              onTap: () {
-                _abrirPlaceholder(context, "Reportes", Icons.bar_chart_rounded);
-              },
-            ),
-
-            const Spacer(),
-
-            // ------------------------------------------------------
-            // CERRAR SESIÓN
-            // ------------------------------------------------------
-            Padding(
-              padding: const EdgeInsets.all(16),
-
-              child: OutlinedButton.icon(
-                onPressed: onCerrarSesion,
-
-                icon: const Icon(
-                  Icons.logout,
-                  size: 17,
-                  color: Color(0xFFE74C3C),
-                ),
-
-                label: Text(
-                  "Cerrar sesión",
-                  style: GoogleFonts.inter(
-                    color: const Color(0xFFE74C3C),
-                    fontSize: 13.5,
-                  ),
-                ),
-
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFFE74C3C)),
-
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --------------------------------------------------------------
-  // ABRIR PLACEHOLDER
-  // --------------------------------------------------------------
-
-  void _abrirPlaceholder(BuildContext context, String titulo, IconData icono) {
-    Navigator.pop(context);
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AdminPlaceholderScreen(titulo: titulo, icono: icono),
-      ),
-    );
-  }
-}
-
-// ================================================================
-// ITEM DEL DRAWER
-// ================================================================
-
-class _DrawerItem extends StatelessWidget {
-  final IconData icono;
-  final String label;
-  final bool activo;
-  final VoidCallback onTap;
-
-  const _DrawerItem({
-    required this.icono,
-    required this.label,
-    required this.onTap,
-    this.activo = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-
-      child: Material(
-        color: activo ? _aNeonSoft : Colors.transparent,
-
-        borderRadius: BorderRadius.circular(10),
-
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: onTap,
-
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-
-            child: Row(
-              children: [
-                Icon(icono, size: 19, color: activo ? _aNeon : _aMuted),
-
-                const SizedBox(width: 14),
-
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    color: activo ? Colors.white : _aMuted,
-                    fontSize: 13.5,
-                    fontWeight: activo ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
