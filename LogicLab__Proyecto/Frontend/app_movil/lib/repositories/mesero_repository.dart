@@ -13,6 +13,26 @@ class MeseroException implements Exception {
 }
 
 class MeseroRepository {
+  // HU02: Obtener el menú del día desde el backend
+  Future<List<dynamic>> obtenerMenuDelDia() async {
+    final headers = await _headersConToken();
+    late http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse(
+          "$baseUrl/api/menu/dia",
+        ), // Ajusta la ruta según tu API de Node.js
+        headers: headers,
+      );
+    } catch (e) {
+      throw MeseroException("No se pudo conectar con el servidor.");
+    }
+    if (response.statusCode != 200) {
+      throw MeseroException("No se pudo cargar el menú del día.");
+    }
+    return jsonDecode(response.body);
+  }
+
   Future<Map<String, String>> _headersConToken() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token') ?? "";
@@ -70,5 +90,86 @@ class MeseroRepository {
     }
     final List<dynamic> data = jsonDecode(response.body);
     return data.map((e) => PedidoMesero.fromJson(e)).toList();
+  }
+}
+// ==========================================
+// NUEVOS MÉTODOS PARA EL SPRINT 2 (HU09, HU10, HU16)
+// ==========================================
+
+// HU09: Cerrar cuenta y registrar método de pago
+// POST /api/pedidos/:id/cerrar-cuenta (o la ruta que maneje tu backend)
+Future<void> cerrarCuenta(int idPedido, String metodoPago) async {
+  final headers = await _headersConToken();
+  headers['Content-Type'] = 'application/json';
+
+  late http.Response response;
+  try {
+    response = await http.post(
+      Uri.parse("$baseUrl/api/pedidos/$idPedido/cerrar-cuenta"),
+      headers: headers,
+      body: jsonEncode({'metodo_pago': metodoPago}),
+    );
+  } catch (e) {
+    throw MeseroException("No se pudo conectar con el servidor.");
+  }
+
+  if (response.statusCode != 200 && response.statusCode != 201) {
+    final errorData = jsonDecode(response.body);
+    throw MeseroException(
+      errorData['message'] ?? "No se pudo cerrar la cuenta.",
+    );
+  }
+}
+
+// HU10: Cancelar pedido
+// PUT o PATCH /api/pedidos/:id/cancelar
+Future<void> cancelarPedido(int idPedido, String motivo) async {
+  final headers = await _headersConToken();
+  headers['Content-Type'] = 'application/json';
+
+  late http.Response response;
+  try {
+    response = await http.put(
+      Uri.parse("$baseUrl/api/pedidos/$idPedido/cancelar"),
+      headers: headers,
+      body: jsonEncode({'motivo': motivo}),
+    );
+  } catch (e) {
+    throw MeseroException("No se pudo conectar con el servidor.");
+  }
+
+  if (response.statusCode != 200) {
+    final errorData = jsonDecode(response.body);
+    throw MeseroException(
+      errorData['message'] ?? "No se pudo cancelar el pedido.",
+    );
+  }
+}
+
+// HU16: Modificar pedido
+// PUT /api/pedidos/:id/modificar
+Future<void> modificarPedido(
+  int idPedido,
+  List<Map<String, dynamic>> nuevosItems,
+) async {
+  final headers = await _headersConToken();
+  headers['Content-Type'] = 'application/json';
+
+  late http.Response response;
+  try {
+    response = await http.put(
+      Uri.parse("$baseUrl/api/pedidos/$idPedido/modificar"),
+      headers: headers,
+      body: jsonEncode({'items': nuevosItems}),
+    );
+  } catch (e) {
+    throw MeseroException("No se pudo conectar con el servidor.");
+  }
+
+  if (response.statusCode != 200) {
+    final errorData = jsonDecode(response.body);
+    throw MeseroException(
+      errorData['message'] ?? "No se pudo modificar el pedido.",
+    );
   }
 }
