@@ -20,6 +20,11 @@ const String baseUrl = "http://localhost:5030";
 class AuthException implements Exception {
   final String message;
   AuthException(this.message);
+
+  // Sin esto, mostrar el error en pantalla (e.toString()) imprime
+  // "Instance of 'AuthException'" en vez del mensaje real.
+  @override
+  String toString() => message;
 }
 
 class AuthRepository {

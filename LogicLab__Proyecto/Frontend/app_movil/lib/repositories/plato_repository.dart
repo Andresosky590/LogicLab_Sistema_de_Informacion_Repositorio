@@ -10,6 +10,9 @@ import 'auth_repository.dart' show baseUrl;
 class PlatoException implements Exception {
   final String message;
   PlatoException(this.message);
+
+  @override
+  String toString() => message;
 }
 
 class PlatoRepository {

@@ -9,6 +9,9 @@ import 'auth_repository.dart' show baseUrl;
 class MenuDiaException implements Exception {
   final String message;
   MenuDiaException(this.message);
+
+  @override
+  String toString() => message;
 }
 
 class MenuDiaRepository {

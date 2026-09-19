@@ -6,6 +6,7 @@ import '../screens/admin_placeholder_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/menu_dia_screen.dart';
 import '../screens/platos_screen.dart';
+import '../screens/reportes_screen.dart';
 
 // ================================================================
 // COLORES — mismos valores que usa el resto del panel admin
@@ -80,10 +81,7 @@ class AdminDrawer extends StatelessWidget {
       case "Menús":
         pantalla = const MenuDiaScreen();
       case "Reportes":
-        pantalla = const AdminPlaceholderScreen(
-          titulo: "Reportes",
-          icono: Icons.bar_chart_rounded,
-        );
+        pantalla = const ReportesScreen();
       default:
         pantalla = const AdminPlaceholderScreen(
           titulo: "Próximamente",

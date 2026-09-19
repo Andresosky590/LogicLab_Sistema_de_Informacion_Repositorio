@@ -12,6 +12,9 @@ import 'auth_repository.dart' show baseUrl;
 class AdminException implements Exception {
   final String message;
   AdminException(this.message);
+
+  @override
+  String toString() => message;
 }
 
 class AdminRepository {
