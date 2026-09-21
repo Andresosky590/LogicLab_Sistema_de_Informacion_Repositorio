@@ -40,6 +40,7 @@ class MenuDiaItem {
   final String? descripcion;
   final double precio;
   final int idCategoria;
+  final String? imagenUrl; // null = usar la imagen genérica de categoría
 
   MenuDiaItem({
     required this.idPlatos,
@@ -47,6 +48,7 @@ class MenuDiaItem {
     required this.descripcion,
     required this.precio,
     required this.idCategoria,
+    required this.imagenUrl,
   });
 
   bool get esCorriente => idPlatos == idCorriente;
@@ -58,6 +60,7 @@ class MenuDiaItem {
       descripcion: json['Descripcion'],
       precio: double.tryParse(json['Precio'].toString()) ?? 0,
       idCategoria: json['id_Categoria'],
+      imagenUrl: json['ImagenUrl'],
     );
   }
 }

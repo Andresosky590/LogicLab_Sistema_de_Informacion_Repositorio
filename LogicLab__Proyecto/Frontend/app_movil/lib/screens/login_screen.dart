@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../controllers/auth_controller.dart';
+import '../controllers/cliente_controller.dart';
 import '../models/usuario_model.dart';
 import 'mesero_inicio_screen.dart';
 import 'cocinero_inicio_screen.dart';
 import 'admin_inicio_screen.dart';
+import 'cliente_vista_general_screen.dart';
+import 'qr_scanner_screen.dart';
 
 // Paleta neón — misma que Hojas_de_Estilo/Login.css en la web, para que
 // el login se vea igual en PC y en celular.
@@ -33,8 +36,10 @@ class _LoginScreenState extends State<LoginScreen>
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authController = AuthController();
+  final _clienteController = ClienteController();
 
   bool _cargando = false;
+  bool _escaneando = false;
   String? _errorMensaje;
   bool _passwordVisible = false;
 
@@ -92,14 +97,69 @@ class _LoginScreenState extends State<LoginScreen>
           return;
       }
 
-      Navigator.of(context)
-          .pushReplacement(MaterialPageRoute(builder: (_) => pantallaDestino));
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => pantallaDestino));
     } catch (e) {
       setState(() {
         _errorMensaje = e.toString().replaceFirst("AuthException: ", "");
         _cargando = false;
       });
     }
+  }
+
+  // ==============================================================
+  // ESCANEAR QR DE MESA (HU15/HU24) — flujo del cliente, sin login.
+  // ==============================================================
+
+  Future<void> _escanearQr() async {
+    final valorEscaneado = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const QrScannerScreen()));
+
+    if (valorEscaneado == null || !mounted) return;
+
+    final token = _extraerTokenDeQr(valorEscaneado);
+    if (token == null) {
+      setState(() => _errorMensaje = "Ese código QR no es de una mesa.");
+      return;
+    }
+
+    setState(() {
+      _escaneando = true;
+      _errorMensaje = null;
+    });
+
+    try {
+      final mesa = await _clienteController.resolverMesaPorToken(token);
+      if (!mounted) return;
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ClienteVistaGeneralScreen(mesa: mesa),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMensaje = e.toString());
+    } finally {
+      if (mounted) setState(() => _escaneando = false);
+    }
+  }
+
+  // El QR trae "$webBaseUrl/vistacliente?mesa=<token>". Si por algún
+  // motivo se escaneara solo el token suelto (sin URL), también sirve.
+  String? _extraerTokenDeQr(String valorEscaneado) {
+    try {
+      final uri = Uri.parse(valorEscaneado);
+      final token = uri.queryParameters['mesa'];
+      if (token != null && token.isNotEmpty) return token;
+    } catch (_) {
+      // No era una URL válida — seguimos con el valor crudo de abajo.
+    }
+
+    final crudo = valorEscaneado.trim();
+    return crudo.isEmpty ? null : crudo;
   }
 
   @override
@@ -243,6 +303,75 @@ class _LoginScreenState extends State<LoginScreen>
                           label: "Ingresar",
                           loading: _cargando,
                           onPressed: _cargando ? null : _iniciarSesion,
+                        ),
+
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Divider(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
+                              child: Text(
+                                "o",
+                                style: GoogleFonts.inter(
+                                  color: _inkDim,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Divider(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Flujo del cliente: sin cuenta, sin
+                        // contraseña — solo escanea el QR de su mesa.
+                        OutlinedButton.icon(
+                          onPressed: _escaneando ? null : _escanearQr,
+                          icon: _escaneando
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: _neonRed,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.qr_code_scanner_rounded,
+                                  size: 18,
+                                  color: _neonRed,
+                                ),
+                          label: Text(
+                            _escaneando
+                                ? "Leyendo código..."
+                                : "Escanear QR de mi mesa",
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: _neonRed.withValues(alpha: 0.5),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            minimumSize: const Size.fromHeight(0),
+                          ),
                         ),
                       ],
                     ),
