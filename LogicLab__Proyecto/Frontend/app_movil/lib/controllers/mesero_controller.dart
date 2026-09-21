@@ -1,55 +1,108 @@
 import '../models/mesa_model.dart';
+import '../models/menu_dia_model.dart';
 import '../models/pedido_mesero_model.dart';
+import '../repositories/menu_dia_repository.dart';
 import '../repositories/mesero_repository.dart';
 
-// Snapshot ya calculado de la vista general del mesero — mismo cálculo
-// que hace LayoutMesero en Panel_Mesero.jsx (pedidos de hoy, entregados,
-// ganado hoy) más el listado de pedidos de hoy para el historial.
+// Igual cálculo que hace LayoutMesero en Panel_Mesero.jsx con su
+// historial: filtra "hoy" y agrupa pagos aprobados por método.
 class ResumenMesero {
-  final String nombre;
   final int pedidosHoy;
   final int entregadosHoy;
-  final double gananciaHoy;
-  final List<PedidoMesero> historialHoy;
+  final double cobradoHoy;
+  final Map<String, double> pagosPorMetodo;
+  final List<PedidoMesero> historial;
 
   ResumenMesero({
-    required this.nombre,
     required this.pedidosHoy,
     required this.entregadosHoy,
-    required this.gananciaHoy,
-    required this.historialHoy,
+    required this.cobradoHoy,
+    required this.pagosPorMetodo,
+    required this.historial,
   });
 }
 
 class MeseroController {
   final MeseroRepository _repository = MeseroRepository();
+  final MenuDiaRepository _menuRepository = MenuDiaRepository();
+
+  Future<MenuDia?> cargarMenuHoy() => _menuRepository.obtenerMenuHoy();
+
+  Future<List<Mesa>> cargarMesas() => _repository.obtenerMesas();
+
+  Future<void> liberarMesa(int idMesa) => _repository.liberarMesa(idMesa);
 
   Future<ResumenMesero> cargarResumen() async {
-    final resultados = await Future.wait([
-      _repository.obtenerPedidos(),
-      _repository.obtenerNombreUsuario(),
-    ]);
+    final pedidos = await _repository.obtenerMisPedidos();
+    final hoy = pedidos.where((p) => p.esDeHoy).toList();
+    final entregados = hoy.where((p) => p.estadoPedido == "entregado").toList();
+    final pagados = hoy.where((p) => p.pagoAprobado).toList();
 
-    final pedidos = resultados[0] as List<PedidoMesero>;
-    final nombre = resultados[1] as String;
+    final cobrado = pagados.fold<double>(0, (a, p) => a + p.totalPagar);
 
-    final pedidosHoy = pedidos.where((p) => p.esDeHoy).toList();
-    final entregadosHoy = pedidosHoy
-        .where((p) => p.estado == "entregado")
-        .toList();
-    final gananciaHoy = entregadosHoy.fold<double>(
-      0,
-      (acc, p) => acc + p.totalPagar,
-    );
+    final porMetodo = <String, double>{};
+    for (final p in pagados) {
+      final metodo = p.metodoPago ?? "Sin método";
+      porMetodo[metodo] = (porMetodo[metodo] ?? 0) + p.totalPagar;
+    }
 
     return ResumenMesero(
-      nombre: nombre,
-      pedidosHoy: pedidosHoy.length,
-      entregadosHoy: entregadosHoy.length,
-      gananciaHoy: gananciaHoy,
-      historialHoy: pedidosHoy,
+      pedidosHoy: hoy.length,
+      entregadosHoy: entregados.length,
+      cobradoHoy: cobrado,
+      pagosPorMetodo: porMetodo,
+      historial: pedidos,
     );
   }
 
-  Future<List<Mesa>> cargarMesas() => _repository.obtenerMesas();
+  Future<List<PedidoMesero>> cargarPorEstado(String estado) =>
+      _repository.obtenerPorEstado(estado);
+
+  Future<void> tomarPedido(int idPedido) => _repository.tomarPedido(idPedido);
+
+  Future<void> enviarACocina(int idPedido) =>
+      _repository.cambiarEstadoPedido(idPedido, "preparando");
+
+  Future<void> entregarPedido(int idPedido) =>
+      _repository.cambiarEstadoPedido(idPedido, "entregado");
+
+  Future<void> cancelarPedido(int idPedido, String motivo) =>
+      _repository.cancelarPedido(idPedido, motivo);
+
+  Future<void> modificarPedido(int idPedido, List<ItemPedidoMesero> items) {
+    final payload = items
+        .map(
+          (i) => {
+            "idPlato": i.idPlato,
+            "nombrePlato": i.nombrePlato,
+            "cantidadPedido": i.cantidad,
+            "notasEspeciales": i.notas,
+            "precioFinal": i.precioFinal,
+            "idCategoria": i.idCategoria,
+          },
+        )
+        .toList();
+    return _repository.modificarPedido(idPedido, payload);
+  }
+
+  Future<void> cerrarCuenta(int idPedido, String metodoPago) =>
+      _repository.cerrarCuenta(idPedido, metodoPago);
+
+  Future<List<Map<String, dynamic>>> cargarMetodosPago() =>
+      _repository.obtenerMetodosPago();
+
+  Future<List<Map<String, dynamic>>> cargarPlatos() =>
+      _repository.obtenerPlatos();
+
+  Future<void> crearPedidoAsistido({
+    required int idMesa,
+    required double totalPagar,
+    required List<Map<String, dynamic>> items,
+    required int idMetodoPago,
+  }) => _repository.crearPedidoAsistido(
+    idMesa: idMesa,
+    totalPagar: totalPagar,
+    items: items,
+    idMetodoPago: idMetodoPago,
+  );
 }

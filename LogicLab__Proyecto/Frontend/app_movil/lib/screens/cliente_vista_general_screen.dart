@@ -348,7 +348,7 @@ class _ClienteVistaGeneralScreenState extends State<ClienteVistaGeneralScreen> {
                     fit: BoxFit.cover,
                     // Si la URL falla (archivo borrado, red caída),
                     // no se rompe la tarjeta: cae a la imagen genérica.
-                    errorBuilder: (_, __, ___) => Image.asset(
+                    errorBuilder: (_, _, _) => Image.asset(
                       _rutaImagen(item.idCategoria),
                       fit: BoxFit.cover,
                     ),
