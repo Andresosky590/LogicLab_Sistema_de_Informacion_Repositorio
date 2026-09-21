@@ -441,40 +441,86 @@ function VistaCliente() {
     };
     cargarMenuDia();
 
-    const mesaGuardada =
-      localStorage.getItem("mesaSeleccionada");
+    /*
+     * Resolver la mesa: primero por el token del QR en la URL
+     * (?mesa=<token>, que es lo que trae el QR que imprime el admin
+     * desde la app — HU15), y si no hay o no es válido, por la mesa
+     * guardada de una selección manual anterior (flujo de siempre).
+     */
+    const resolverMesa = async () => {
+      const tokenQr = new URLSearchParams(
+        window.location.search
+      ).get("mesa");
 
-    if (mesaGuardada) {
-      setMesaActiva(mesaGuardada);
-
-      axios
-        .get(`${API}/api/mesas/listar`)
-        .then((res) => {
-          const mesa = res.data.find(
-            (m) =>
-              String(m.Numero_mesa) ===
-              String(mesaGuardada)
+      if (tokenQr) {
+        try {
+          const res = await axios.get(
+            `${API}/api/mesas/qr/${tokenQr}`
           );
 
-          if (mesa) {
-            setIdMesaActiva(mesa.id_Mesas);
-          }
-        })
-        .catch((error) => {
+          const mesa = res.data;
+
+          setMesaActiva(String(mesa.Numero_mesa));
+          setIdMesaActiva(mesa.id_Mesas);
+
+          localStorage.setItem(
+            "mesaSeleccionada",
+            String(mesa.Numero_mesa)
+          );
+
+          setTimeout(() => {
+            verificarPedidoMesa(
+              String(mesa.Numero_mesa)
+            );
+          }, 300);
+
+          return;
+        } catch (error) {
+          /*
+           * QR inválido/desactivado (por ejemplo, se regeneró y este
+           * es el impreso viejo): seguimos con el flujo manual de
+           * abajo en vez de dejar al cliente sin poder pedir.
+           */
           console.error(
-            "Error cargando id de mesa:",
+            "Código QR no válido, se usa selección manual:",
             error
           );
-        });
+        }
+      }
 
-      /*
-       * La consulta inicial se hace después de un pequeño
-       * retraso para no competir con la carga de la pantalla.
-       */
-      setTimeout(() => {
-        verificarPedidoMesa(mesaGuardada);
-      }, 300);
-    }
+      const mesaGuardada =
+        localStorage.getItem("mesaSeleccionada");
+
+      if (mesaGuardada) {
+        setMesaActiva(mesaGuardada);
+
+        axios
+          .get(`${API}/api/mesas/listar`)
+          .then((res) => {
+            const mesa = res.data.find(
+              (m) =>
+                String(m.Numero_mesa) ===
+                String(mesaGuardada)
+            );
+
+            if (mesa) {
+              setIdMesaActiva(mesa.id_Mesas);
+            }
+          })
+          .catch((error) => {
+            console.error(
+              "Error cargando id de mesa:",
+              error
+            );
+          });
+
+        setTimeout(() => {
+          verificarPedidoMesa(mesaGuardada);
+        }, 300);
+      }
+    };
+
+    resolverMesa();
   }, []);
 
   /*

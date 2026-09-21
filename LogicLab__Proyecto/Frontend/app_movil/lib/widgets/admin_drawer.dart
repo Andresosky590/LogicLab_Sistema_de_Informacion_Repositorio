@@ -5,6 +5,7 @@ import '../controllers/auth_controller.dart';
 import '../screens/admin_placeholder_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/menu_dia_screen.dart';
+import '../screens/mesas_screen.dart';
 import '../screens/platos_screen.dart';
 import '../screens/reportes_screen.dart';
 
@@ -80,6 +81,8 @@ class AdminDrawer extends StatelessWidget {
         );
       case "Menús":
         pantalla = const MenuDiaScreen();
+      case "Mesas":
+        pantalla = const MesasScreen();
       case "Reportes":
         pantalla = const ReportesScreen();
       default:
@@ -166,6 +169,13 @@ class AdminDrawer extends StatelessWidget {
               label: "Menús",
               activo: seccionActiva == "Menús",
               onTap: () => _ir(context, "Menús"),
+            ),
+
+            _DrawerItem(
+              icono: Icons.qr_code_2_rounded,
+              label: "Mesas",
+              activo: seccionActiva == "Mesas",
+              onTap: () => _ir(context, "Mesas"),
             ),
 
             _DrawerItem(

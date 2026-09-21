@@ -17,6 +17,18 @@ import '../models/usuario_model.dart';
 // busca "Dirección IPv4" de tu red WiFi.
 const String baseUrl = "http://localhost:5030";
 
+// ── IMPORTANTE (HU15 — QR de mesas) ─────────────────────────────────────
+// URL del FRONTEND WEB (Vite), no del backend — es lo que va codificado
+// dentro del QR que el cliente escanea con su celular. El puerto por
+// defecto de Vite es el 5173.
+//
+// Igual que con baseUrl: en el celular del admin generando el QR no
+// importa tanto (ese solo genera/regenera), pero el celular del CLIENTE
+// que va a escanear el QR impreso sí necesita que esto sea una dirección
+// a la que su celular pueda llegar — la IP local de tu PC en la red del
+// restaurante, nunca "localhost".
+const String webBaseUrl = "http://localhost:5173";
+
 class AuthException implements Exception {
   final String message;
   AuthException(this.message);

@@ -463,7 +463,7 @@ class _PlatoCard extends StatelessWidget {
                     width: 56,
                     height: 56,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const _MiniaturaVacia(),
+                    errorBuilder: (_, _, _) => const _MiniaturaVacia(),
                     loadingBuilder: (context, child, progreso) {
                       if (progreso == null) return child;
                       return const SizedBox(
@@ -965,7 +965,7 @@ class _FormularioPlatoState extends State<_FormularioPlato> {
                             Image.network(
                               widget.imagenUrlExistente!,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const _SinFotoAun(),
+                              errorBuilder: (_, _, _) => const _SinFotoAun(),
                             ),
                             Positioned(
                               right: 6,

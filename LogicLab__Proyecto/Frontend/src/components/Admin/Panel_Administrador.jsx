@@ -40,6 +40,7 @@ export function LayoutAdmin({ usuario, paginaActual, children }) {
         { id: "empleados", icon: "bi-people", label: "Empleados" },
         { id: "platos", icon: "bi-egg-fried", label: "Platos" },
         { id: "menus", icon: "bi-journal-text", label: "Menús" },
+        { id: "mesas", icon: "bi-qr-code", label: "Mesas" },
         { id: "reportes", icon: "bi-bar-chart", label: "Reportes" },
     ]
 
