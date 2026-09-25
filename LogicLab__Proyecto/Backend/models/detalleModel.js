@@ -53,6 +53,28 @@ const DetalleModel = {
             DELETE FROM Detalle_Pedidos WHERE id_Pedidos = ?
         `;
         db.query(query, [idPedido], callback);
+    },
+
+    // Eliminar UNA línea puntual — se filtra también por id_Pedidos
+    // para no poder borrar por accidente un detalle de otro pedido.
+    deleteById: (idDetalle, idPedido, callback) => {
+        const query = `
+            DELETE FROM Detalle_Pedidos
+            WHERE id_Detalle_Pedidos = ? AND id_Pedidos = ?
+        `;
+        db.query(query, [idDetalle, idPedido], callback);
+    },
+
+    // Cambiar solo la cantidad (y el precio ya recalculado) de UNA
+    // línea existente — para el +/- de "seguir agregando" sin tener
+    // que borrar e insertar de nuevo.
+    actualizarCantidad: (idDetalle, idPedido, cantidadPedido, precioFinal, callback) => {
+        const query = `
+            UPDATE Detalle_Pedidos
+            SET CantidadPedido = ?, PrecioFinal = ?
+            WHERE id_Detalle_Pedidos = ? AND id_Pedidos = ?
+        `;
+        db.query(query, [cantidadPedido, precioFinal, idDetalle, idPedido], callback);
     }
 };
 

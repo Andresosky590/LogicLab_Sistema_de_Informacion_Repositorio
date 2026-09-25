@@ -1,4 +1,4 @@
-const PqrsfModel = require("../models/pqrsfModel");
+const PqrsfModel = require("../models/PqrsfModel");
 
 const PqrsfController = {
 
