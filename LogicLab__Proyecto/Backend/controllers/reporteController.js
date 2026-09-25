@@ -25,17 +25,23 @@ const ReporteController = {
         }
 
         // ── Consulta 1: métricas generales del período ──
+        // NOTA: Pedidos no guarda el estado ni el método de pago como texto,
+        // solo los FK (id_Estado, id_MetodoPago) — hay que unir con
+        // estados_pedido/metodo_pago para poder filtrar/agrupar por nombre,
+        // igual que ya hace pedidoModel.js en el resto del backend.
         const queryMetricas = `
             SELECT
-                COUNT(*)                                              AS total_pedidos,
-                COUNT(CASE WHEN EstadoPedido = 'entregado'  THEN 1 END) AS entregados,
-                COUNT(CASE WHEN EstadoPedido = 'cancelado'  THEN 1 END) AS cancelados,
-                COALESCE(SUM(CASE WHEN EstadoPedido = 'entregado' THEN TotalPagar END), 0) AS ingresos_totales,
-                COALESCE(AVG(CASE WHEN EstadoPedido = 'entregado' THEN TotalPagar END), 0) AS ticket_promedio,
-                COUNT(CASE WHEN MetodoPago = 'efectivo'   THEN 1 END) AS pagos_efectivo,
-                COUNT(CASE WHEN MetodoPago = 'tarjeta'    THEN 1 END) AS pagos_tarjeta,
-                COUNT(CASE WHEN MetodoPago = 'transferencia' THEN 1 END) AS pagos_transferencia
+                COUNT(*)                                                      AS total_pedidos,
+                COUNT(CASE WHEN ep.NombreEstado = 'entregado'  THEN 1 END)    AS entregados,
+                COUNT(CASE WHEN ep.NombreEstado = 'cancelado'  THEN 1 END)    AS cancelados,
+        COALESCE(SUM( CASE WHEN ep.NombreEstado = 'entregado' AND p.EstadoPago = 'aprobado' THEN p.TotalPagar END),0) AS ingresos_totales,
+        COALESCE( AVG( CASE WHEN ep.NombreEstado = 'entregado' AND p.EstadoPago = 'aprobado' THEN p.TotalPagar END),0) AS ticket_promedio,
+                COUNT(CASE WHEN mp.NombreMetodo = 'Efectivo'      THEN 1 END) AS pagos_efectivo,
+                COUNT(CASE WHEN mp.NombreMetodo = 'Tarjeta'       THEN 1 END) AS pagos_tarjeta,
+                COUNT(CASE WHEN mp.NombreMetodo = 'Transferencia' THEN 1 END) AS pagos_transferencia
             FROM Pedidos p
+            JOIN estados_pedido ep ON ep.id_Estado = p.id_Estado
+            LEFT JOIN metodo_pago mp ON mp.id_MetodoPago = p.id_MetodoPago
             WHERE ${filtroFecha}
         `;
 
@@ -44,11 +50,34 @@ const ReporteController = {
             SELECT
                 DATE(p.Fecha_Pedido)                                        AS fecha,
                 COUNT(*)                                                     AS pedidos,
-                COALESCE(SUM(CASE WHEN EstadoPedido = 'entregado' THEN TotalPagar END), 0) AS ingresos
+            COALESCE( SUM( CASE WHEN ep.NombreEstado = 'entregado' AND p.EstadoPago = 'aprobado' THEN p.TotalPagar END ), 0 ) AS ingresos
             FROM Pedidos p
+            JOIN estados_pedido ep ON ep.id_Estado = p.id_Estado
             WHERE ${filtroFecha}
             GROUP BY DATE(p.Fecha_Pedido)
             ORDER BY fecha ASC
+        `;
+
+        // ── Consulta 4: pagos aprobados agrupados por método ──
+        // Las columnas pagos_efectivo / pagos_tarjeta / pagos_transferencia de
+        // la Consulta 1 tienen los 3 nombres escritos a mano, así que desde que
+        // existen los pagos en línea (Nequi, Daviplata, PSE, Tarjeta crédito/
+        // débito) esos contadores dejan fuera la mayoría de los pagos reales.
+        // Esta consulta agrupa por el método que realmente tenga el pedido,
+        // sin nombres fijos, así que no hay que tocarla si mañana se agrega
+        // otro método a la tabla metodo_pago.
+        const queryPorMetodo = `
+            SELECT
+                mp.NombreMetodo                      AS metodo,
+                COUNT(*)                             AS cantidad,
+                COALESCE(SUM(p.TotalPagar), 0)       AS total
+            FROM Pedidos p
+            JOIN estados_pedido ep ON ep.id_Estado = p.id_Estado
+            JOIN metodo_pago mp ON mp.id_MetodoPago = p.id_MetodoPago
+            WHERE ${filtroFecha}
+              AND p.EstadoPago = 'aprobado'
+            GROUP BY mp.NombreMetodo
+            ORDER BY total DESC
         `;
 
         // ── Consulta 3: ranking de platos más vendidos en el período ──
@@ -59,8 +88,9 @@ const ReporteController = {
                 SUM(dp.CantidadPedido * dp.PrecioFinal)  AS ingreso_generado
             FROM Detalle_Pedidos dp
             INNER JOIN Pedidos p ON p.id_Pedidos = dp.id_Pedidos
+            JOIN estados_pedido ep ON ep.id_Estado = p.id_Estado
             WHERE ${filtroFecha}
-              AND p.EstadoPedido = 'entregado'
+              AND ep.NombreEstado = 'entregado'
             GROUP BY dp.NombrePlato
             ORDER BY veces_pedido DESC
             LIMIT 10
@@ -77,9 +107,14 @@ const ReporteController = {
             new Promise((resolve, reject) =>
                 db.query(queryRanking, (err, r) => err ? reject(err) : resolve(r))
             ),
+            new Promise((resolve, reject) =>
+                db.query(queryPorMetodo, (err, r) => err ? reject(err) : resolve(r))
+            ),
         ])
-        .then(([metricas, porDia, ranking]) => {
-            res.status(200).json({ metricas, porDia, ranking, periodo });
+        .then(([metricas, porDia, ranking, porMetodo]) => {
+            // porMetodo es un campo nuevo y adicional: la web sigue recibiendo
+            // metricas/porDia/ranking igual que antes, así que no se rompe.
+            res.status(200).json({ metricas, porDia, ranking, porMetodo, periodo });
         })
         .catch(err => {
             console.error("Error en reporte:", err);

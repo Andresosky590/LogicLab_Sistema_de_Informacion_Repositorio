@@ -4,7 +4,13 @@ const conexion = mysql.createConnection({
 host: "localhost",
 database: "bd_logiclab",
 user: "root",
-password: ""
+password: "",
+// Sin esto, las columnas DATETIME/DATE llegan como objetos Date de JS,
+// que al convertirse a texto (toISOString) se reinterpretan como si
+// fueran UTC y se corren varias horas — rompiendo comparaciones como
+// "¿este pedido es de hoy?" en el frontend. Con dateStrings, MySQL
+// entrega la fecha tal cual está guardada, como texto plano.
+dateStrings: true
 
 });
 

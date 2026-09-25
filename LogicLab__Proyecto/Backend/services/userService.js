@@ -1,13 +1,36 @@
+const crypto = require("crypto");
 const UserModel = require("../models/userModel");
+const CodigoModel = require("../models/codigoRecuperacionModel");
+const EmailService = require("./emailService");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken")
 
 const SECRET = "mangata_secret_password"
 
+// ── Recuperación de contraseña ───────────────────────────────────────────
+const MINUTOS_VIGENCIA      = 15; // el código vence a los 15 minutos
+const SEGUNDOS_ENTRE_ENVIOS = 60; // anti-spam: mínimo 1 min entre códigos
+const MAX_INTENTOS          = 5;  // equivocaciones permitidas por código
+
+// En la BD solo se guarda el hash del código, nunca el código en claro.
+const hashCodigo = (codigo) =>
+    crypto.createHash("sha256").update(String(codigo)).digest("hex");
+
+const codigoCoincide = (codigo, hashGuardado) => {
+    const a = Buffer.from(hashCodigo(codigo));
+    const b = Buffer.from(hashGuardado);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+
 const UserService = {
 
     getAllUsers: (callback) => {
         UserModel.findAll(callback);
+    },
+
+    // Para el admin: ver también los usuarios inactivos (historial)
+    getAllUsersConInactivos: (callback) => {
+        UserModel.findAllConInactivos(callback);
     },
 
     getUserById: (id, callback) => {
@@ -41,6 +64,13 @@ const UserService = {
                 return callback({ status: 401, message: "Credenciales inválidas" });
 
             const usuario = results[0];
+
+            // Un usuario desactivado (ej. empleado que ya no trabaja aquí)
+            // no puede volver a iniciar sesión, aunque su registro siga existiendo.
+            if (usuario.Activo === 0) {
+                return callback({ status: 403, message: "Este usuario está inactivo" });
+            }
+
             bcrypt.compare(password, usuario.Contraseña_hash, (err, passwordCorrecto) => {
                 if (err) return callback(err);
                 if (!passwordCorrecto)
@@ -91,9 +121,94 @@ const UserService = {
         }
     },
 
-    // ── Eliminar usuario ──────────────────────────────────────────────────────
+    // ── "Eliminar" usuario (borrado lógico) ─────────────────────────────────
     deleteUser: (id, callback) => {
         UserModel.delete(id, callback);
+    },
+
+    // ── Reactivar usuario ────────────────────────────────────────────────────
+    reactivarUsuario: (id, callback) => {
+        UserModel.reactivar(id, callback);
+    },
+
+    // ── Recuperar contraseña · paso 1: enviar el código por correo ──────────
+    // Si el correo no existe (o el usuario está inactivo) responde igual que
+    // si existiera y no envía nada: así no se puede averiguar qué correos
+    // están registrados.
+    solicitarCodigo: (email, callback) => {
+        UserModel.findByEmail(email, (err, results) => {
+            if (err) return callback(err);
+
+            const usuario = results[0];
+            if (!usuario || usuario.Activo === 0) return callback(null);
+
+            const idUsuario = usuario.id_Usuarios_Restaurante;
+
+            CodigoModel.findByUsuario(idUsuario, (err, codigos) => {
+                if (err) return callback(err);
+
+                // Si acaba de pedir uno, no se genera otro todavía.
+                if (codigos.length > 0 && Number(codigos[0].Segundos) < SEGUNDOS_ENTRE_ENVIOS)
+                    return callback(null);
+
+                const codigo = crypto.randomInt(100000, 1000000).toString();
+
+                CodigoModel.guardar(idUsuario, hashCodigo(codigo), MINUTOS_VIGENCIA, (err) => {
+                    if (err) return callback(err);
+
+                    EmailService
+                        .enviarCodigoRecuperacion(usuario.Email, usuario.Nombre, codigo, MINUTOS_VIGENCIA)
+                        .then(
+                            () => callback(null),
+                            // Si el correo no salió, se borra el código para
+                            // poder reintentar sin esperar el minuto.
+                            (errCorreo) => CodigoModel.eliminarPorUsuario(idUsuario, () => callback(errCorreo))
+                        );
+                });
+            });
+        });
+    },
+
+    // ── Recuperar contraseña · paso 2: validar código y cambiar clave ───────
+    restablecerPassword: (email, codigo, nuevaPassword, callback) => {
+        const codigoInvalido = { status: 400, message: "El código es incorrecto o ha expirado" };
+
+        UserModel.findByEmail(email, (err, results) => {
+            if (err) return callback(err);
+
+            const usuario = results[0];
+            if (!usuario || usuario.Activo === 0) return callback(codigoInvalido);
+
+            const idUsuario = usuario.id_Usuarios_Restaurante;
+
+            CodigoModel.findByUsuario(idUsuario, (err, codigos) => {
+                if (err) return callback(err);
+
+                const registro = codigos[0];
+                if (!registro || !registro.Vigente) return callback(codigoInvalido);
+
+                // Demasiadas equivocaciones: el código se invalida.
+                if (registro.Intentos >= MAX_INTENTOS) {
+                    return CodigoModel.eliminarPorUsuario(idUsuario, () =>
+                        callback({ status: 429, message: "Demasiados intentos. Solicita un código nuevo." })
+                    );
+                }
+
+                if (!codigoCoincide(codigo, registro.Codigo_hash)) {
+                    return CodigoModel.sumarIntento(registro.id_Codigo, () => callback(codigoInvalido));
+                }
+
+                bcrypt.hash(nuevaPassword, 10, (err, hashedPassword) => {
+                    if (err) return callback(err);
+
+                    UserModel.updatePassword(idUsuario, hashedPassword, (err) => {
+                        if (err) return callback(err);
+                        // El código ya se usó: se elimina para que no sirva dos veces.
+                        CodigoModel.eliminarPorUsuario(idUsuario, (err) => callback(err));
+                    });
+                });
+            });
+        });
     },
 };
 
