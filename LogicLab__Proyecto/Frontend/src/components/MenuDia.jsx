@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from "react-router-dom"
+import axios from "axios"
 import '../App.css';
 import '../../Hojas_de_Estilo/MenuDia.css';
+
+const API = "http://localhost:5030";
 
 const IMG_CATEGORIA = {
   "1": "/CartaCorriente.png",
@@ -10,21 +13,36 @@ const IMG_CATEGORIA = {
   "4": "/CartaBebidas.png",
 }
 
+// Foto real del plato si el admin ya subió una (HU05); si no, cae a la
+// imagen genérica de su categoría.
+const urlImagenPlato = (plato) => {
+  if (plato.ImagenUrl) return `${API}${plato.ImagenUrl}`;
+  return IMG_CATEGORIA[String(plato.id_Categoria)] ?? "/CartaCorriente.png";
+}
+
 function MenuDia() {
   const navigate = useNavigate()
   const [menuDelDia, setMenuDelDia] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    const menuGuardado = localStorage.getItem("menuDelDia");
-    if (menuGuardado) {
-      setMenuDelDia(JSON.parse(menuGuardado));
-    }
-    setCargando(false);
+    const cargarMenu = async () => {
+      try {
+        const res = await axios.get(`${API}/api/menu-dia/hoy`);
+        if (res.data && Array.isArray(res.data.items)) {
+          setMenuDelDia(res.data.items);
+        }
+      } catch (error) {
+        console.error("Error cargando el menú del día:", error);
+      } finally {
+        setCargando(false);
+      }
+    };
+    cargarMenu();
   }, []);
 
-  const menuPlatos = menuDelDia.filter(p => p.CategoriaId !== "4");
-  const menuBebidas = menuDelDia.filter(p => p.CategoriaId === "4");
+  const menuPlatos = menuDelDia.filter(p => String(p.id_Categoria) !== "4");
+  const menuBebidas = menuDelDia.filter(p => String(p.id_Categoria) === "4");
 
   const formatPrecio = (precio) => `$${Number(precio).toLocaleString("es-CO")}`;
 
@@ -58,7 +76,7 @@ function MenuDia() {
                 {menuPlatos.map((plato, i) => (
                   <div key={i} className="menu-plato-card">
                     <img
-                      src={IMG_CATEGORIA[plato.CategoriaId] ?? "/CartaCorriente.png"}
+                      src={urlImagenPlato(plato)}
                       alt={plato.NombrePlato}
                       className="menu-plato-img"
                     />
@@ -80,7 +98,7 @@ function MenuDia() {
                 {menuBebidas.map((plato, i) => (
                   <div key={i} className="menu-plato-card">
                     <img
-                      src={IMG_CATEGORIA["4"]}
+                      src={urlImagenPlato(plato)}
                       alt={plato.NombrePlato}
                       className="menu-plato-img"
                     />

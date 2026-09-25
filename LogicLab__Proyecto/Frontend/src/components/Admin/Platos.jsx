@@ -6,15 +6,8 @@ import '../../App.css'
 const API  = "http://localhost:5030"
 const NEON = "#ff1744"
 
-const IMAGENES_PUBLIC = [
-    { src: "/CartaCorriente.png", label: "Corriente"},
-    { src: "/CartaComidaRapida.png", label: "Comida Rápida"},
-    { src: "/CartaEspecial.png", label: "Especial"},
-    { src: "/CartaBebidas.png", label: "Bebidas"},
-    { src: "/hamburguesa.png", label: "Hamburguesa"},
-    { src: "/Nuggets.jpg", label: "Nuggets"},
-]
-
+// Imagen de respaldo por categoría, para los platos que todavía no
+// tienen una foto real subida (ImagenUrl = null).
 const IMG_CAT = {
     "1": "/CartaCorriente.png",
     "2": "/CartaComidaRapida.png",
@@ -22,55 +15,11 @@ const IMG_CAT = {
     "4": "/CartaBebidas.png",
 }
 
-function urlImagen(plato, imgMap) {
-    return imgMap[plato.id_Platos]
-        ?? IMG_CAT[String(plato.id_Categoria)]
-        ?? "/CartaCorriente.png"
-}
-
-function PickerImagenes({ seleccionada, onSeleccionar }) {
-    return (
-        <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "8px",
-            margin: "4px 0 12px 0"
-        }}>
-            {IMAGENES_PUBLIC.map(img => {
-                const activa = seleccionada === img.src
-                return (
-                    <div key={img.src} onClick={() => onSeleccionar(img.src)}
-                        style={{
-                            border: activa ? `2px solid ${NEON}` : "2px solid transparent",
-                            borderRadius: "8px", overflow: "hidden",
-                            cursor: "pointer", position: "relative",
-                            boxShadow: activa ? `0 0 10px rgba(255,23,68,0.5)` : "none",
-                            transition: "all 0.15s"
-                        }}
-                    >
-                        <img src={img.src} alt={img.label}
-                            style={{ width: "100%", height: "70px", objectFit: "cover", display: "block" }} />
-                        <p style={{
-                            margin: 0, textAlign: "center", fontSize: "0.65rem",
-                            padding: "3px 0",
-                            background: activa ? NEON : "rgba(0,0,0,0.6)",
-                            color: activa ? "#000" : "#aaa",
-                            fontWeight: activa ? "700" : "400"
-                        }}>{img.label}</p>
-                        {activa && (
-                            <div style={{
-                                position: "absolute", top: "4px", right: "4px",
-                                background: NEON, borderRadius: "50%",
-                                width: "18px", height: "18px",
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                fontSize: "0.7rem", color: "#000", fontWeight: "900"
-                            }}>✓</div>
-                        )}
-                    </div>
-                )
-            })}
-        </div>
-    )
+// La imagen real de un plato vive en el backend (Backend/uploads/platos/),
+// nunca en la BD ni en localStorage — acá solo armamos la URL completa.
+function urlImagen(plato) {
+    if (plato.ImagenUrl) return `${API}${plato.ImagenUrl}`
+    return IMG_CAT[String(plato.id_Categoria)] ?? "/CartaCorriente.png"
 }
 
 function PreviewImagen({ src, alt, categoria }) {
@@ -82,6 +31,35 @@ function PreviewImagen({ src, alt, categoria }) {
     )
 }
 
+// Botón + input de archivo oculto para elegir una foto desde el
+// dispositivo (galería o cámara, según lo que ofrezca el navegador).
+function SelectorImagenArchivo({ onArchivo, subiendo }) {
+    return (
+        <label style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            gap: "8px", padding: "10px", margin: "4px 0 12px 0",
+            border: `1px dashed ${NEON}`, borderRadius: "8px",
+            color: NEON, fontSize: "0.82rem", fontWeight: "600",
+            cursor: subiendo ? "default" : "pointer",
+            opacity: subiendo ? 0.6 : 1,
+            background: "rgba(255,23,68,0.05)"
+        }}>
+            {subiendo ? "Subiendo..." : "📷 Elegir imagen desde el dispositivo"}
+            <input
+                type="file"
+                accept="image/png, image/jpeg, image/webp"
+                style={{ display: "none" }}
+                disabled={subiendo}
+                onChange={e => {
+                    const archivo = e.target.files?.[0]
+                    if (archivo) onArchivo(archivo)
+                    e.target.value = "" // permite volver a elegir el mismo archivo
+                }}
+            />
+        </label>
+    )
+}
+
 function Platos() {
     const [platos,    setPlatos]    = useState([])
     const [categorias,setCategorias]= useState([])
@@ -90,20 +68,18 @@ function Platos() {
     const [busqueda,  setBusqueda]  = useState("")
     const [filtroCat, setFiltroCat] = useState("todas")
 
-    const [imgMap, setImgMap] = useState(() => {
-        try { return JSON.parse(localStorage.getItem("platos_imagenes") || "{}") }
-        catch { return {} }
-    })
-
     const [editando, setEditando] = useState(null)
     const [formEdit, setFormEdit] = useState({})
-    const [imgEdit, setImgEdit] = useState(null)
+    const [imgEditFile, setImgEditFile] = useState(null)
+    const [imgEditPreview, setImgEditPreview] = useState(null)
+    const [subiendoImgEdit, setSubiendoImgEdit] = useState(false)
     const [guardando, setGuardando] = useState(false)
     const [msgEdit, setMsgEdit] = useState(null)
 
     const [modalNuevo, setModalNuevo] = useState(false)
     const [formNuevo, setFormNuevo] = useState({ nombre: "", descripcion: "", precio: "", id_Categoria: "" })
-    const [imgNuevo, setImgNuevo]   = useState(null)
+    const [imgNuevoFile, setImgNuevoFile] = useState(null)
+    const [imgNuevoPreview, setImgNuevoPreview] = useState(null)
     const [creando, setCreando] = useState(false)
     const [msgNuevo, setMsgNuevo]   = useState(null)
 
@@ -121,22 +97,41 @@ function Platos() {
         finally  { setCargando(false) }
     }
 
-    const actualizarImgMap = (nuevoMapa) => {
-        setImgMap(nuevoMapa)
-        localStorage.setItem("platos_imagenes", JSON.stringify(nuevoMapa))
-    }
-
     const nombreCat = id => categorias.find(c => String(c.id_Categoria) === String(id))?.NombreCategoria ?? ""
     const fmtPrecio = p  => `$${Number(p).toLocaleString("es-CO")}`
+
+    // Sube la imagen de un plato ya existente (o recién creado) al
+    // backend. Solo guarda la URL devuelta en la BD — nunca el archivo.
+    const subirImagenPlato = async (idPlato, archivo) => {
+        const formData = new FormData()
+        formData.append("imagen", archivo)
+        // No seteamos Content-Type a mano: axios arma el boundary
+        // correcto solo cuando el body es un FormData.
+        await axios.post(`${API}/api/platos/${idPlato}/imagen`, formData)
+    }
+
+    // ------------------------------------------------------------
+    // EDITAR
+    // ------------------------------------------------------------
 
     const abrirEdit = plato => {
         setEditando(plato)
         setFormEdit({ Descripcion: plato.Descripcion ?? "", Precio: plato.Precio })
-        setImgEdit(imgMap[plato.id_Platos] ?? IMG_CAT[String(plato.id_Categoria)] ?? "/CartaCorriente.png")
+        setImgEditFile(null)
+        setImgEditPreview(plato.ImagenUrl ? `${API}${plato.ImagenUrl}` : null)
         setMsgEdit(null)
     }
 
-    const cerrarEdit = () => { setEditando(null); setImgEdit(null); setMsgEdit(null) }
+    const cerrarEdit = () => {
+        if (imgEditFile) URL.revokeObjectURL(imgEditPreview)
+        setEditando(null); setImgEditFile(null); setImgEditPreview(null); setMsgEdit(null)
+    }
+
+    const elegirImagenEdit = archivo => {
+        if (imgEditFile) URL.revokeObjectURL(imgEditPreview)
+        setImgEditFile(archivo)
+        setImgEditPreview(URL.createObjectURL(archivo))
+    }
 
     const guardarEdit = async () => {
         setGuardando(true)
@@ -145,7 +140,21 @@ function Platos() {
                 descripcion: formEdit.Descripcion,
                 precio:      Number(formEdit.Precio),
             })
-            actualizarImgMap({ ...imgMap, [editando.id_Platos]: imgEdit })
+
+            if (imgEditFile) {
+                setSubiendoImgEdit(true)
+                try {
+                    await subirImagenPlato(editando.id_Platos, imgEditFile)
+                } catch {
+                    setMsgEdit({ ok: false, texto: "Se guardaron los datos, pero la imagen no se pudo subir." })
+                    setSubiendoImgEdit(false)
+                    setGuardando(false)
+                    await cargar()
+                    return
+                }
+                setSubiendoImgEdit(false)
+            }
+
             await cargar()
             setMsgEdit({ ok: true, texto: "Plato actualizado correctamente" })
             setTimeout(cerrarEdit, 1200)
@@ -159,22 +168,33 @@ function Platos() {
         setGuardando(true)
         try {
             await axios.delete(`${API}/api/platos/eliminar/${editando.id_Platos}`)
-            const nuevo = { ...imgMap }
-            delete nuevo[editando.id_Platos]
-            actualizarImgMap(nuevo)
             await cargar()
             cerrarEdit()
         } catch { setMsgEdit({ ok: false, texto: "Error al eliminar el plato" }) }
         finally  { setGuardando(false) }
     }
 
+    // ------------------------------------------------------------
+    // NUEVO
+    // ------------------------------------------------------------
+
     const abrirNuevo  = () => {
         setFormNuevo({ nombre: "", descripcion: "", precio: "", id_Categoria: "" })
-        setImgNuevo(null)
+        setImgNuevoFile(null)
+        setImgNuevoPreview(null)
         setMsgNuevo(null)
         setModalNuevo(true)
     }
-    const cerrarNuevo = () => { setModalNuevo(false); setImgNuevo(null); setMsgNuevo(null) }
+    const cerrarNuevo = () => {
+        if (imgNuevoFile) URL.revokeObjectURL(imgNuevoPreview)
+        setModalNuevo(false); setImgNuevoFile(null); setImgNuevoPreview(null); setMsgNuevo(null)
+    }
+
+    const elegirImagenNuevo = archivo => {
+        if (imgNuevoFile) URL.revokeObjectURL(imgNuevoPreview)
+        setImgNuevoFile(archivo)
+        setImgNuevoPreview(URL.createObjectURL(archivo))
+    }
 
     const crearPlato = async () => {
         const { nombre, descripcion, precio, id_Categoria } = formNuevo
@@ -192,9 +212,19 @@ function Platos() {
             })
 
             const nuevoId = res?.data?.id
-            if (nuevoId && imgNuevo) {
-                actualizarImgMap({ ...imgMap, [nuevoId]: imgNuevo })
+
+            if (nuevoId && imgNuevoFile) {
+                try {
+                    await subirImagenPlato(nuevoId, imgNuevoFile)
+                } catch {
+                    setMsgNuevo({ ok: true, texto: "Plato creado, pero la imagen no se pudo subir. Puedes agregarla luego editándolo." })
+                    await cargar()
+                    setTimeout(cerrarNuevo, 1800)
+                    setCreando(false)
+                    return
+                }
             }
+
             await cargar()
             setMsgNuevo({ ok: true, texto: "Plato creado correctamente" })
             setTimeout(cerrarNuevo, 1200)
@@ -257,7 +287,7 @@ function Platos() {
                         {filtrados.map(plato => (
                             <div key={plato.id_Platos} className="plato-card">
                                 <div className="plato-card-img-wrap">
-                                    <img src={urlImagen(plato, imgMap)} alt={plato.NombrePlato} className="plato-card-img" />
+                                    <img src={urlImagen(plato)} alt={plato.NombrePlato} className="plato-card-img" />
                                     <span className="plato-card-categoria">{nombreCat(plato.id_Categoria)}</span>
                                 </div>
                                 <div className="plato-card-body">
@@ -280,10 +310,18 @@ function Platos() {
                             <p className="emp-modal-nombre">{editando.NombrePlato}</p>
                         </div>
                         <div className="emp-modal-body">
-                            <PreviewImagen src={imgEdit} alt={editando.NombrePlato} categoria={nombreCat(editando.id_Categoria)} />
+                            {imgEditPreview
+                                ? <PreviewImagen src={imgEditPreview} alt={editando.NombrePlato} categoria={nombreCat(editando.id_Categoria)} />
+                                : <div style={{
+                                    width: "100%", height: "80px", background: "rgba(255,255,255,0.03)",
+                                    borderRadius: "8px", display: "flex", alignItems: "center",
+                                    justifyContent: "center", color: "#555", fontSize: "0.82rem",
+                                    border: "1px dashed rgba(255,23,68,0.3)", marginBottom: "8px"
+                                  }}>Sin imagen todavía</div>
+                            }
 
-                            <label className="emp-modal-label">Elegir imagen:</label>
-                            <PickerImagenes seleccionada={imgEdit} onSeleccionar={setImgEdit} />
+                            <label className="emp-modal-label">Foto del plato:</label>
+                            <SelectorImagenArchivo onArchivo={elegirImagenEdit} subiendo={subiendoImgEdit} />
 
                             <label className="emp-modal-label">Descripción:</label>
                             <textarea className="plato-modal-textarea" rows={3}
@@ -326,8 +364,8 @@ function Platos() {
                         </div>
                         <div className="emp-modal-body">
 
-                            {imgNuevo
-                                ? <PreviewImagen src={imgNuevo} alt="preview" />
+                            {imgNuevoPreview
+                                ? <PreviewImagen src={imgNuevoPreview} alt="preview" />
                                 : <div style={{
                                     width: "100%", height: "80px", background: "rgba(255,255,255,0.03)",
                                     borderRadius: "8px", display: "flex", alignItems: "center",
@@ -336,8 +374,8 @@ function Platos() {
                                   }}>Sin imagen seleccionada</div>
                             }
 
-                            <label className="emp-modal-label">Elegir imagen:</label>
-                            <PickerImagenes seleccionada={imgNuevo} onSeleccionar={setImgNuevo} />
+                            <label className="emp-modal-label">Foto del plato:</label>
+                            <SelectorImagenArchivo onArchivo={elegirImagenNuevo} subiendo={false} />
 
                             <label className="emp-modal-label">Nombre:</label>
                             <input className="emp-modal-input" type="text" placeholder="Ej: Bandeja Paisa"

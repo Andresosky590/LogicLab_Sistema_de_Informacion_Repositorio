@@ -78,10 +78,14 @@ function Panel_Cocinero({ usuario }) {
     }
   };
 
-  const cargarMenuDelDia = () => {
-    const menuGuardado = localStorage.getItem("menuDelDia");
-    const parsed = menuGuardado ? JSON.parse(menuGuardado) : [];
-    setMenuDelDia(Array.isArray(parsed) ? parsed : []);
+  const cargarMenuDelDia = async () => {
+    try {
+      const res = await axios.get(`${API}/api/menu-dia/hoy`);
+      const items = res.data && Array.isArray(res.data.items) ? res.data.items : [];
+      setMenuDelDia(items);
+    } catch (error) {
+      console.error("Error cargando el menú del día:", error);
+    }
   };
 
   useEffect(() => {
@@ -108,6 +112,8 @@ function Panel_Cocinero({ usuario }) {
 
   const cerrarSesion = () => {
     sessionStorage.removeItem("usuario");
+    sessionStorage.removeItem("token");
+    delete axios.defaults.headers.common["Authorization"]
     localStorage.removeItem("token");
     localStorage.removeItem("rol");
     localStorage.removeItem("paginaActual");

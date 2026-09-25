@@ -1,0 +1,254 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import '../controllers/cocinero_controller.dart';
+import '../formato.dart';
+import '../models/menu_dia_model.dart';
+import '../repositories/auth_repository.dart' show baseUrl;
+
+const Color _cVerde = Color(0xFF39FF14);
+const Color _cCard = Color(0x0AFFFFFF);
+const Color _cBorder = Color(0x14FFFFFF);
+const Color _cMuted = Color(0xFF888888);
+const Color _cBg = Color(0xFF0A0A0A);
+
+// Sin imágenes de respaldo por categoría — el admin sube una foto
+// real por plato desde su dispositivo; si un plato todavía no tiene
+// una, se muestra un ícono simple en vez de una imagen genérica.
+Widget _placeholderImagen() {
+  return Container(
+    color: const Color(0x14FFFFFF),
+    alignment: Alignment.center,
+    child: const Icon(Icons.restaurant_menu_rounded, color: _cMuted, size: 28),
+  );
+}
+
+class CocineroMenuScreen extends StatefulWidget {
+  const CocineroMenuScreen({super.key});
+
+  @override
+  State<CocineroMenuScreen> createState() => _CocineroMenuScreenState();
+}
+
+class _CocineroMenuScreenState extends State<CocineroMenuScreen> {
+  final _controller = CocineroController();
+
+  bool _cargando = true;
+  String? _error;
+  MenuDia? _menu;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    setState(() {
+      _cargando = true;
+      _error = null;
+    });
+    try {
+      final menu = await _controller.cargarMenuHoy();
+      if (!mounted) return;
+      setState(() {
+        _menu = menu;
+        _cargando = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _cargando = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _cBg,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        title: Text(
+          "MENÚ DEL DÍA",
+          style: GoogleFonts.spaceGrotesk(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 13,
+            letterSpacing: 1.2,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: _cVerde),
+            onPressed: _cargando ? null : _cargar,
+          ),
+        ],
+      ),
+      body: _buildCuerpo(),
+    );
+  }
+
+  Widget _buildCuerpo() {
+    if (_cargando) {
+      return const Center(child: CircularProgressIndicator(color: _cVerde));
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.wifi_off_rounded, color: _cMuted, size: 40),
+              const SizedBox(height: 14),
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(color: _cMuted, fontSize: 12.5),
+              ),
+              const SizedBox(height: 14),
+              TextButton(
+                onPressed: _cargar,
+                child: const Text(
+                  "Reintentar",
+                  style: TextStyle(color: _cVerde),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final menu = _menu;
+    if (menu == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "El menú de hoy aún no está listo.",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                "El administrador lo publicará en breve.",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(color: _cMuted, fontSize: 12.5),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final platos = menu.items.where((i) => i.idCategoria != 4).toList();
+    final bebidas = menu.items.where((i) => i.idCategoria == 4).toList();
+
+    return RefreshIndicator(
+      color: _cVerde,
+      backgroundColor: Colors.black,
+      onRefresh: _cargar,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          if (platos.isNotEmpty) ...[
+            _titulo("PLATOS"),
+            const SizedBox(height: 10),
+            ...platos.map(_tarjeta),
+            const SizedBox(height: 18),
+          ],
+          if (bebidas.isNotEmpty) ...[
+            _titulo("BEBIDAS"),
+            const SizedBox(height: 10),
+            ...bebidas.map(_tarjeta),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _titulo(String t) => Center(
+    child: Text(
+      t,
+      style: GoogleFonts.spaceGrotesk(
+        color: _cVerde,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 2,
+      ),
+    ),
+  );
+
+  Widget _tarjeta(MenuDiaItem item) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: _cCard,
+        borderRadius: BorderRadius.circular(14),
+        border: item.esCorriente
+            ? Border.all(color: _cVerde)
+            : Border.all(color: _cBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: item.imagenUrl != null
+                ? Image.network(
+                    "$baseUrl${item.imagenUrl}",
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => _placeholderImagen(),
+                  )
+                : _placeholderImagen(),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.nombrePlato,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if ((item.descripcion ?? "").isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    item.descripcion!,
+                    style: GoogleFonts.inter(color: _cMuted, fontSize: 12),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  fmtPesos(item.precio),
+                  style: GoogleFonts.spaceGrotesk(
+                    color: _cVerde,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -127,6 +127,10 @@ const handleIngresoCliente = async (e) => {
             />
 
             <button type="submit" className="login-button-staff">Ingresar</button>
+
+            <p className="login-forgot-pass" onClick={() => navigate("/recuperar-password")}>
+              ¿Olvidaste tu contraseña?
+            </p>
           </form>
 
           <form className="login-form-client" onSubmit={handleIngresoCliente}>

@@ -1,14 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom"
 import "../../Hojas_de_Estilo/MensajeCocina.css";
 import "../App.css";
+import { inicializarAudio, reproducirNotificacion } from "./utils/audioHelper";
 
 const API = "http://localhost:5030";
 
 function MensajeCocina({ usuario}) {
   const navigate = useNavigate()
   const [pedidosListos, setPedidosListos] = useState([]);
+  const [idsRecientes, setIdsRecientes] = useState(new Set());
+
+  // Mismo mecanismo que ya usa Panel_Cocinero.jsx para detectar
+  // pedidos nuevos: guardamos qué ids ya se mostraron para poder
+  // distinguir "esto ya estaba" de "esto acaba de llegar" en cada
+  // vuelta del polling. En la primera carga no se suena nada — esos
+  // pedidos ya estaban listos antes de abrir la pantalla.
+  const idsAnterioresRef = useRef(null)
+  const primeraCargaRef = useRef(true)
 
   if (!usuario) {
     const usuarioGuardado = JSON.parse(
@@ -21,7 +31,14 @@ function MensajeCocina({ usuario}) {
   }
 
   useEffect(() => {
+    inicializarAudio();
     cargarNotificacionesCocina();
+    // BUGFIX: antes esta pantalla solo cargaba una vez al entrar — si
+    // el mesero no la volvía a abrir a mano, nunca se enteraba de que
+    // cocina marcó un pedido como listo. Ahora hace polling cada 4s,
+    // igual que la cola de cocina.
+    const iv = setInterval(cargarNotificacionesCocina, 4000)
+    return () => clearInterval(iv)
   }, []);
 
   const cargarNotificacionesCocina = async () => {
@@ -47,6 +64,23 @@ function MensajeCocina({ usuario}) {
           bebidas
         };
       });
+
+      if (primeraCargaRef.current) {
+        idsAnterioresRef.current = new Set(pedidos.map(p => p.id_Pedidos))
+        primeraCargaRef.current = false
+      } else {
+        const idsNuevos = pedidos
+          .map(p => p.id_Pedidos)
+          .filter(id => !idsAnterioresRef.current.has(id))
+
+        if (idsNuevos.length > 0) {
+          reproducirNotificacion()
+          setIdsRecientes(new Set(idsNuevos))
+          setTimeout(() => setIdsRecientes(new Set()), 12000)
+        }
+
+        idsAnterioresRef.current = new Set(pedidos.map(p => p.id_Pedidos))
+      }
 
       setPedidosListos(pedidos);
 
@@ -117,7 +151,7 @@ function MensajeCocina({ usuario}) {
 
             <div
               key={pedido.id_Pedidos}
-              className="mco-card"
+              className={`mco-card ${idsRecientes.has(pedido.id_Pedidos) ? "mco-card-reciente" : ""}`}
             >
 
               <div className="mco-card-header">
@@ -129,6 +163,12 @@ function MensajeCocina({ usuario}) {
                 <span className="mco-badge-listo">
                   ¡LISTO!
                 </span>
+
+                {idsRecientes.has(pedido.id_Pedidos) && (
+                  <span className="mco-badge-nuevo">
+                    NUEVO
+                  </span>
+                )}
 
                 <span className="mco-total">
                   $
