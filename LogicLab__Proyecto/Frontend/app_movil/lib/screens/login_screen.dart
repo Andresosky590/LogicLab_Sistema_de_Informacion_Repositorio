@@ -12,6 +12,7 @@ import 'cocinero_inicio_screen.dart';
 import 'admin_inicio_screen.dart';
 import 'cliente_vista_general_screen.dart';
 import 'qr_scanner_screen.dart';
+import 'recuperar_password_screen.dart';
 
 // Paleta neón — misma que Hojas_de_Estilo/Login.css en la web, para que
 // el login se vea igual en PC y en celular.
@@ -108,6 +109,17 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  // Abre la recuperación de contraseña llevando el correo ya escrito.
+  void _abrirRecuperacion() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RecuperarPasswordScreen(
+          emailInicial: _emailController.text.trim(),
+        ),
+      ),
+    );
+  }
+
   // ==============================================================
   // ESCANEAR QR DE MESA (HU15/HU24) — flujo del cliente, sin login.
   // ==============================================================
@@ -132,6 +144,12 @@ class _LoginScreenState extends State<LoginScreen>
 
     try {
       final mesa = await _clienteController.resolverMesaPorToken(token);
+      if (!mounted) return;
+
+      // BUGFIX: se guarda la sesión de esta mesa para que, si se
+      // refresca la página (Flutter Web reinicia toda la app),
+      // MangataApp lo mande directo de vuelta acá en vez de al login.
+      await _clienteController.guardarSesionMesa(mesa);
       if (!mounted) return;
 
       Navigator.of(context).push(
@@ -303,6 +321,20 @@ class _LoginScreenState extends State<LoginScreen>
                           label: "Ingresar",
                           loading: _cargando,
                           onPressed: _cargando ? null : _iniciarSesion,
+                        ),
+
+                        const SizedBox(height: 6),
+                        Center(
+                          child: TextButton(
+                            onPressed: _cargando ? null : _abrirRecuperacion,
+                            child: Text(
+                              "¿Olvidaste tu contraseña?",
+                              style: GoogleFonts.inter(
+                                color: _inkDim,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ),
                         ),
 
                         const SizedBox(height: 18),

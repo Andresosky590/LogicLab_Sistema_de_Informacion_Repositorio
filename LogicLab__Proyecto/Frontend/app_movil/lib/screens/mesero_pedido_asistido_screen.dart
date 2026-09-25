@@ -15,15 +15,16 @@ const Color _mBg = Color(0xFF0A0A0A);
 const Color _mCard = Color(0x0AFFFFFF);
 const Color _mMuted = Color(0xFF888888);
 
-const Map<int, String> _imagenCategoria = {
-  1: "assets/images/CartaCorriente.png",
-  2: "assets/images/CartaComidaRapida.png",
-  3: "assets/images/CartaEspecial.png",
-  4: "assets/images/CartaBebidas.png",
-};
-
-String _rutaImagen(int idCategoria) =>
-    _imagenCategoria[idCategoria] ?? "assets/images/CartaCorriente.png";
+// Sin imágenes de respaldo por categoría — el admin sube una foto
+// real por plato desde su dispositivo; si un plato todavía no tiene
+// una, se muestra un ícono simple en vez de una imagen genérica.
+Widget _placeholderImagen() {
+  return Container(
+    color: const Color(0x14FFFFFF),
+    alignment: Alignment.center,
+    child: const Icon(Icons.restaurant_menu_rounded, color: _mMuted, size: 24),
+  );
+}
 
 // Un plato del carrito, con la cantidad elegida.
 class _ItemCarrito {
@@ -618,15 +619,9 @@ class _MeseroPedidoAsistidoScreenState
                 ? Image.network(
                     "$baseUrl${plato.imagenUrl}",
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Image.asset(
-                      _rutaImagen(plato.idCategoria),
-                      fit: BoxFit.cover,
-                    ),
+                    errorBuilder: (_, _, _) => _placeholderImagen(),
                   )
-                : Image.asset(
-                    _rutaImagen(plato.idCategoria),
-                    fit: BoxFit.cover,
-                  ),
+                : _placeholderImagen(),
           ),
           Expanded(
             child: Padding(

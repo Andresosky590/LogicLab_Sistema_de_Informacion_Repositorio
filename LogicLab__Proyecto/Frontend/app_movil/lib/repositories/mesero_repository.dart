@@ -244,6 +244,76 @@ class MeseroRepository {
     }
   }
 
+  // POST /api/pedidos/:id/items — agregar UN ítem nuevo. A diferencia
+  // de modificarPedido (que reemplaza toda la lista), esto solo toca
+  // la línea nueva — si el cliente está agregando algo al mismo
+  // pedido desde su celular justo en este momento, no se pisan.
+  Future<void> agregarItem(int idPedido, Map<String, dynamic> item) async {
+    final headers = await _headers(conJson: true);
+    late http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse("$baseUrl/api/pedidos/$idPedido/items"),
+        headers: headers,
+        body: jsonEncode(item),
+      );
+    } catch (e) {
+      throw MeseroException("No se pudo conectar con el servidor.");
+    }
+    if (response.statusCode != 201) {
+      final data = _tryDecode(response.body);
+      throw MeseroException(data?['message'] ?? "No se pudo agregar el ítem.");
+    }
+  }
+
+  // DELETE /api/pedidos/:id/items/:idDetalle — quitar UNA línea.
+  Future<void> quitarItem(int idPedido, int idDetalle) async {
+    final headers = await _headers();
+    late http.Response response;
+    try {
+      response = await http.delete(
+        Uri.parse("$baseUrl/api/pedidos/$idPedido/items/$idDetalle"),
+        headers: headers,
+      );
+    } catch (e) {
+      throw MeseroException("No se pudo conectar con el servidor.");
+    }
+    if (response.statusCode != 200) {
+      final data = _tryDecode(response.body);
+      throw MeseroException(data?['message'] ?? "No se pudo quitar el ítem.");
+    }
+  }
+
+  // PUT /api/pedidos/:id/items/:idDetalle — cambiar la cantidad de
+  // una línea existente.
+  Future<void> actualizarCantidadItem(
+    int idPedido,
+    int idDetalle,
+    int cantidad,
+    double precioFinal,
+  ) async {
+    final headers = await _headers(conJson: true);
+    late http.Response response;
+    try {
+      response = await http.put(
+        Uri.parse("$baseUrl/api/pedidos/$idPedido/items/$idDetalle"),
+        headers: headers,
+        body: jsonEncode({
+          "cantidadPedido": cantidad,
+          "precioFinal": precioFinal,
+        }),
+      );
+    } catch (e) {
+      throw MeseroException("No se pudo conectar con el servidor.");
+    }
+    if (response.statusCode != 200) {
+      final data = _tryDecode(response.body);
+      throw MeseroException(
+        data?['message'] ?? "No se pudo actualizar la cantidad.",
+      );
+    }
+  }
+
   // PUT /api/pedidos/cuenta/:id — HU09, cerrar cuenta con el método de
   // pago con el que el cliente pagó en persona.
   Future<void> cerrarCuenta(int idPedido, String metodoPago) async {
@@ -261,6 +331,31 @@ class MeseroRepository {
     if (response.statusCode != 200) {
       final data = _tryDecode(response.body);
       throw MeseroException(data?['message'] ?? "No se pudo cerrar la cuenta.");
+    }
+  }
+
+  // PUT /api/pedidos/pago-presencial/:id — distinto de cerrarCuenta:
+  // el cliente pidió por su cuenta desde el QR pero prefiere pagarle
+  // al mesero en persona ANTES de que el pedido pase a cocina. Solo
+  // marca el pago — el pedido sigue su camino normal (no se marca
+  // "entregado" de una vez, como sí hace cerrarCuenta).
+  Future<void> marcarPagoPresencial(int idPedido, String metodoPago) async {
+    final headers = await _headers(conJson: true);
+    late http.Response response;
+    try {
+      response = await http.put(
+        Uri.parse("$baseUrl/api/pedidos/pago-presencial/$idPedido"),
+        headers: headers,
+        body: jsonEncode({"metodoPago": metodoPago}),
+      );
+    } catch (e) {
+      throw MeseroException("No se pudo conectar con el servidor.");
+    }
+    if (response.statusCode != 200) {
+      final data = _tryDecode(response.body);
+      throw MeseroException(
+        data?['message'] ?? "No se pudo registrar el pago.",
+      );
     }
   }
 

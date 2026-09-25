@@ -72,6 +72,23 @@
   box-shadow: 0 0 24px rgba(255, 140, 0, 0.08), 0 12px 28px rgba(0,0,0,0.4);
 }
 
+/* Pedido recién llegado en esta vuelta del polling — mismo criterio
+   visual que la tarjeta "NUEVO" en las pantallas de Flutter. */
+.mco-card-reciente {
+  border-color: #f1c40f;
+  box-shadow: 0 0 0 1px #f1c40f, 0 0 20px rgba(241, 196, 15, 0.25);
+}
+
+.mco-badge-nuevo {
+  background: #f1c40f;
+  color: #000;
+  font-weight: 800;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
 /* Cabecera */
 .mco-card-header {
   display: flex;

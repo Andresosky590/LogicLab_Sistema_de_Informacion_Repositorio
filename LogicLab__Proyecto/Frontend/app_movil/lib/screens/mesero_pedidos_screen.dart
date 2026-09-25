@@ -13,6 +13,7 @@ const Color _mNaranjaBorder = Color(0x4DE87D2A);
 const Color _mBg = Color(0xFF0A0A0A);
 const Color _mCard = Color(0x0AFFFFFF);
 const Color _mMuted = Color(0xFF888888);
+const Color _mRojo = Color(0xFFE74C3C);
 
 const Map<String, Color> _colorEstado = {
   "pendiente": Color(0xFFF1C40F),
@@ -285,16 +286,24 @@ class _MeseroPedidosScreenState extends State<MeseroPedidosScreen> {
               Icon(
                 p.pagoAprobado
                     ? Icons.check_circle_rounded
+                    : p.estadoPedido == "cancelado"
+                    ? Icons.cancel_outlined
                     : Icons.hourglass_bottom_rounded,
                 size: 13,
                 color: p.pagoAprobado
                     ? const Color(0xFF19A971)
+                    : p.estadoPedido == "cancelado"
+                    ? _mRojo
                     : const Color(0xFFF1C40F),
               ),
               const SizedBox(width: 5),
               Text(
+                // Si se canceló sin haberse pagado nunca, se distingue
+                // de un "pendiente" normal — este ya no va a pagarse.
                 p.pagoAprobado
                     ? "Pagado · ${p.metodoPago ?? "Método no indicado"}"
+                    : p.estadoPedido == "cancelado"
+                    ? "Pago no realizado"
                     : "Pago pendiente",
                 style: GoogleFonts.inter(color: _mMuted, fontSize: 11.5),
               ),

@@ -1,5 +1,6 @@
-import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -650,7 +651,7 @@ class _FormularioPlato extends StatefulWidget {
     String? descripcion,
     double precio,
     _DatosPlatoNuevo? datosNuevo,
-    File? imagen,
+    XFile? imagen,
   )
   onGuardar;
   final Future<void> Function()? onEliminar;
@@ -677,7 +678,11 @@ class _FormularioPlatoState extends State<_FormularioPlato> {
   late final TextEditingController _precioCtrl;
 
   final ImagePicker _picker = ImagePicker();
-  File? _imagenSeleccionada;
+  XFile? _imagenSeleccionada;
+
+  // Los bytes se leen al elegir la foto para poder mostrar la vista previa
+  // con Image.memory: Image.file no existe en Flutter Web.
+  Uint8List? _imagenBytes;
 
   int? _categoriaSeleccionada;
   bool _guardando = false;
@@ -716,7 +721,24 @@ class _FormularioPlatoState extends State<_FormularioPlato> {
         maxWidth: 1600,
       );
       if (xfile == null) return;
-      setState(() => _imagenSeleccionada = File(xfile.path));
+
+      final bytes = await xfile.readAsBytes();
+      if (!mounted) return;
+
+      // Mismo tope de 5 MB que tiene el backend (multer).
+      if (bytes.length > 5 * 1024 * 1024) {
+        setState(
+          () => _mensajeError =
+              "La imagen pesa más de 5 MB. Elige una más liviana.",
+        );
+        return;
+      }
+
+      setState(() {
+        _imagenSeleccionada = xfile;
+        _imagenBytes = bytes;
+        _mensajeError = null;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _mensajeError = "No se pudo acceder a la imagen: $e");
@@ -724,6 +746,12 @@ class _FormularioPlatoState extends State<_FormularioPlato> {
   }
 
   void _mostrarOpcionesImagen() {
+    // En el navegador no hay cámara que elegir: va directo al selector de archivos.
+    if (kIsWeb) {
+      _elegirImagen(ImageSource.gallery);
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF161616),
@@ -950,7 +978,7 @@ class _FormularioPlatoState extends State<_FormularioPlato> {
                       ? Stack(
                           fit: StackFit.expand,
                           children: [
-                            Image.file(_imagenSeleccionada!, fit: BoxFit.cover),
+                            Image.memory(_imagenBytes!, fit: BoxFit.cover),
                             Positioned(
                               right: 6,
                               bottom: 6,

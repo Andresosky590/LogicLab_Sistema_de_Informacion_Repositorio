@@ -1,7 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' show MediaType;
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/plato_model.dart';
@@ -158,14 +159,27 @@ class PlatoRepository {
   // POST /api/platos/:id/imagen (multipart) — sube la foto del plato.
   // Devuelve la ruta relativa (ImagenUrl) que guardó el backend;
   // hay que anteponerle baseUrl para poder mostrarla con Image.network.
-  Future<String> subirImagen(int idPlato, File archivo) async {
+  //
+  // Recibe un XFile (no un File de dart:io) para que funcione igual en
+  // el celular Y en Flutter Web, donde dart:io no existe. Por eso se
+  // suben los BYTES de la imagen en vez de una ruta de archivo.
+  Future<String> subirImagen(int idPlato, XFile archivo) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token') ?? "";
+
+    final bytes = await archivo.readAsBytes();
 
     final uri = Uri.parse("$baseUrl/api/platos/$idPlato/imagen");
     final request = http.MultipartRequest("POST", uri)
       ..headers["Authorization"] = "Bearer $token"
-      ..files.add(await http.MultipartFile.fromPath("imagen", archivo.path));
+      ..files.add(
+        http.MultipartFile.fromBytes(
+          "imagen",
+          bytes,
+          filename: archivo.name,
+          contentType: _tipoDeImagen(archivo.name),
+        ),
+      );
 
     late http.StreamedResponse streamed;
     try {
@@ -183,6 +197,24 @@ class PlatoRepository {
 
     final data = jsonDecode(response.body);
     return data['imagenUrl'] as String;
+  }
+
+  // multer (backend) valida el Content-Type de la imagen y solo deja pasar
+  // jpeg/png/webp. Desde el celular lo detecta http solo; desde la web los
+  // bytes llegan "sin tipo", así que se lo decimos según la extensión.
+  MediaType _tipoDeImagen(String nombreArchivo) {
+    final extension = nombreArchivo.toLowerCase().split('.').last;
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+        return MediaType('image', 'jpeg');
+      case 'png':
+        return MediaType('image', 'png');
+      case 'webp':
+        return MediaType('image', 'webp');
+      default:
+        throw PlatoException("Solo se permiten imágenes JPG, PNG o WEBP.");
+    }
   }
 
   Map<String, dynamic>? _tryDecode(String body) {

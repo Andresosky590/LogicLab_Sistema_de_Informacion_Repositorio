@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:image_picker/image_picker.dart' show XFile;
 
 import '../models/plato_model.dart';
 import '../repositories/plato_repository.dart';
@@ -61,7 +61,7 @@ class PlatoController {
     return _repository.cambiarDisponibilidad(id, disponible);
   }
 
-  Future<String> subirImagen(int idPlato, File archivo) {
+  Future<String> subirImagen(int idPlato, XFile archivo) {
     return _repository.subirImagen(idPlato, archivo);
   }
 }

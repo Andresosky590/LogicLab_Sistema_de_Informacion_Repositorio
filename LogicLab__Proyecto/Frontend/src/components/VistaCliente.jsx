@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import "../../Hojas_de_Estilo/Cliente.css";
 import "../App.css";
 import {
@@ -15,6 +15,16 @@ const IMG_CATEGORIA = {
   "2": "/CartaComidaRapida.png",
   "3": "/CartaEspecial.png",
   "4": "/CartaBebidas.png",
+};
+
+// Foto real del plato si el admin ya subió una (HU05); si no, cae a la
+// imagen genérica de su categoría. Mismo criterio que ya usa
+// Admin/Platos.jsx (urlImagen) — antes esta vista lo ignoraba siempre.
+const urlImagenPlato = (plato) => {
+  if (plato.ImagenUrl) return `${API}${plato.ImagenUrl}`;
+  return (
+    IMG_CATEGORIA[String(plato.id_Categoria)] ?? "/CartaCorriente.png"
+  );
 };
 
 const TarjetaPlato = ({
@@ -40,10 +50,7 @@ const TarjetaPlato = ({
       >
         <div className="vc-tarjeta-img-wrap">
           <img
-            src={
-              IMG_CATEGORIA[String(plato.id_Categoria)] ??
-              "/CartaCorriente.png"
-            }
+            src={urlImagenPlato(plato)}
             alt={plato.NombrePlato}
             className="vc-tarjeta-img"
           />
@@ -130,6 +137,7 @@ const TarjetaPlato = ({
 
 function VistaCliente() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [menuDelDia, setMenuDelDia] = useState([]);
   const [mesaActiva, setMesaActiva] = useState("");
@@ -143,6 +151,13 @@ function VistaCliente() {
   const [platoAbierto, setPlatoAbierto] = useState(null);
 
   const [pedidoActivo, setPedidoActivo] = useState(null);
+
+  // El pedido que YA se entregó, mientras el cliente no haya decidido
+  // "salir" o "ver el menú de nuevo" — dispara la pantalla de cierre
+  // (pagar si falta, gracias, PQRSF, salir). Solo se activa para el
+  // MISMO pedido que esta sesión venía siguiendo como pedidoActivo,
+  // nunca para uno viejo de un cliente anterior en la mesa.
+  const [pedidoRecienEntregado, setPedidoRecienEntregado] = useState(null);
 
   const [carritoAbierto, setCarritoAbierto] =
     useState(false);
@@ -185,6 +200,14 @@ function VistaCliente() {
   const [simulando, setSimulando] = useState(false);
 
   /*
+   * Monto real del pedido que se está pagando desde la pasarela.
+   * NO se puede usar `totalPedido` (el que sale del carrito) porque
+   * en este flujo el pedido ya existe y el carrito ya está vacío —
+   * por eso la pantalla de pago mostraba siempre $0.
+   */
+  const [totalPagoActual, setTotalPagoActual] = useState(0);
+
+  /*
    * Este ref evita que una consulta del polling que ya estaba
    * ejecutándose cambie la pantalla mientras estamos pagando.
    */
@@ -195,6 +218,16 @@ function VistaCliente() {
    * está pagando y evitar respuestas antiguas.
    */
   const pedidoPagoRef = useRef(null);
+
+  /*
+   * Cuando se paga desde "¡Tu pedido ya llegó!" (pagarPedidoEntregado)
+   * hay que salir de ese return temprano para que se vea la pasarela,
+   * así que `pedidoRecienEntregado` se pone en null. Pero luego, al
+   * terminar el pago, necesitamos volver a esa pantalla de cierre (no
+   * al menú) — este ref guarda ese pedido mientras tanto para poder
+   * restaurarlo en simularPago.
+   */
+  const pedidoCierreRef = useRef(null);
 
   useEffect(() => {
     pantallaPagoRef.current = pantallaPago;
@@ -371,13 +404,7 @@ function VistaCliente() {
         return;
       }
 
-      const pedidos = Array.isArray(res.data)
-        ? res.data.filter(
-            (p) =>
-              !p.EstadoPago ||
-              p.EstadoPago === "aprobado"
-          )
-        : [];
+      const pedidos = Array.isArray(res.data) ? res.data : [];
 
       const activo = pedidos.find((p) =>
         [
@@ -387,21 +414,31 @@ function VistaCliente() {
         ].includes(p.EstadoPedido)
       );
 
-      const entregado = pedidos.find(
-        (p) => p.EstadoPedido === "entregado"
-      );
-
       setPedidoActivo((prevPedido) => {
-        if (
-          prevPedido &&
-          !activo &&
-          entregado
-        ) {
-          reproducirAlertaListo();
+        // Si aparece un pedido en curso de nuevo (ej. el cliente pidió
+        // otra ronda desde "ver el menú de nuevo"), se sale de la
+        // pantalla de cierre por si seguía activa.
+        if (activo) {
+          setPedidoRecienEntregado(null);
+        }
 
-          setCarrito([]);
-          setCantidades({});
-          setPeticiones({});
+        // Si el pedido que veníamos siguiendo ya no está "en curso",
+        // se revisa si fue justo porque pasó a "entregado" — nunca se
+        // toma un "entregado" cualquiera, solo el MISMO id que ya
+        // veníamos rastreando (nunca el de un cliente anterior).
+        if (prevPedido && !activo) {
+          const esteEntregado = pedidos.find(
+            (p) =>
+              p.id_Pedidos === prevPedido.id_Pedidos &&
+              p.EstadoPedido === "entregado"
+          );
+          if (esteEntregado) {
+            reproducirAlertaListo();
+            setCarrito([]);
+            setCantidades({});
+            setPeticiones({});
+            setPedidoRecienEntregado(esteEntregado);
+          }
         }
 
         return activo || null;
@@ -448,6 +485,26 @@ function VistaCliente() {
      * guardada de una selección manual anterior (flujo de siempre).
      */
     const resolverMesa = async () => {
+      /*
+       * BUGFIX: esta vista es una sola ruta ("/vistacliente") para
+       * cualquier mesa — React Router NO desmonta el componente al
+       * pasar de ?mesa=tokenA a ?mesa=tokenB (misma ruta, solo
+       * cambia el query string), así que sin este reset seguía
+       * mostrando el pedido/carrito de la mesa anterior hasta que
+       * se recargaba la página a mano.
+       *
+       * Se limpia ANTES de resolver el token nuevo para no dejar ver
+       * ni un instante los datos de la mesa vieja mientras se
+       * resuelve la nueva.
+       */
+      setPedidoActivo(null);
+      setCarrito([]);
+      setCantidades({});
+      setPeticiones({});
+      setPlatoAbierto(null);
+      setMesaActiva("");
+      setIdMesaActiva(null);
+
       const tokenQr = new URLSearchParams(
         window.location.search
       ).get("mesa");
@@ -521,7 +578,14 @@ function VistaCliente() {
     };
 
     resolverMesa();
-  }, []);
+    // BUGFIX: antes tenía [] — solo corría al montar el componente,
+    // así que si se navegaba de ?mesa=tokenA a ?mesa=tokenB sin una
+    // recarga completa de página (misma ruta "/vistacliente"),
+    // React Router no remonta el componente y esta función nunca
+    // volvía a leer el nuevo token de la URL. Depender de
+    // location.search hace que se re-resuelva la mesa cada vez que
+    // cambia el query string, sea por recarga o por navegación.
+  }, [location.search]);
 
   /*
    * =========================================================
@@ -723,10 +787,52 @@ function VistaCliente() {
    * =========================================================
    */
 
-  const irAPago = async () => {
-    if (carrito.length === 0) {
-      return;
+  // Deja lista y abre la pasarela para un pedido que YA existe —
+  // se usa desde la vista de seguimiento (una vez en cocina) y
+  // desde la pantalla de cierre (si llegó a la mesa sin pagar).
+  const mostrarPasarelaPara = async (idPedido, total) => {
+    pedidoPagoRef.current = idPedido;
+    setIdPedidoActual(idPedido);
+    setTotalPagoActual(Number(total) || 0);
+
+    const resMetodos = await axios.get(
+      `${API}/api/metodo-pago/online`
+    );
+
+    if (
+      !Array.isArray(resMetodos.data) ||
+      resMetodos.data.length === 0
+    ) {
+      // Si no existen métodos, dejamos que el usuario vuelva
+      // al carrito y no dejamos una pantalla rota.
+      setIdPedidoActual(null);
+      pedidoPagoRef.current = null;
+
+      throw new Error(
+        "No existen métodos de pago disponibles."
+      );
     }
+
+    setMetodosPago(resMetodos.data);
+    setMetodoSeleccionado(null);
+    setDatosPago({});
+    setResultadoPago(null);
+    setMensajeRechazo("");
+
+    // PRIMERO activamos el ref — React actualiza los estados
+    // después, y el polling nunca debe ganar esta carrera.
+    pantallaPagoRef.current = true;
+    setCarritoAbierto(true);
+    setPantallaPago(true);
+  };
+
+  // Enviar el PRIMER (y único) pedido del cliente — ya no existe la
+  // opción de "seguir agregando" desde la app; si el cliente quiere
+  // algo más después de enviarlo, eso lo resuelve el mesero desde su
+  // propio editor. El pago tampoco pasa por acá — ya no es requisito
+  // para mandar a cocina, se paga después (ver pagarPedido).
+  const enviarPedido = async () => {
+    if (carrito.length === 0) return;
 
     if (!idMesaActiva) {
       alert(
@@ -735,29 +841,9 @@ function VistaCliente() {
       return;
     }
 
-    /*
-     * Si ya tenemos un pedido pendiente de este intento,
-     * solamente mostramos la pasarela.
-     */
-    if (idPedidoActual) {
-      pantallaPagoRef.current = true;
-      setPantallaPago(true);
-      setCarritoAbierto(true);
-      return;
-    }
-
     setEnviando(true);
 
     try {
-      const totalGeneral =
-        carrito.reduce(
-          (acc, item) =>
-            acc +
-            Number(item.plato.Precio) *
-              item.cantidad,
-          0
-        );
-
       const items = carrito.map(
         (item) => ({
           idPlato:
@@ -781,107 +867,63 @@ function VistaCliente() {
         })
       );
 
-      /*
-       * Crear pedido.
-       *
-       * El backend debe dejar este pedido como:
-       *
-       * EstadoPago = "pendiente"
-       *
-       * Por lo tanto cocina NO debe recibirlo todavía.
-       */
-      const resPedido = await axios.post(
-        `${API}/api/pedidos/crear`,
-        {
-          idMesa: idMesaActiva,
-          totalPagar: totalGeneral,
-          items,
-        }
-      );
-
-      const nuevoIdPedido =
-        resPedido.data.idPedido;
-
-      if (!nuevoIdPedido) {
-        throw new Error(
-          "El backend no devolvió el id del pedido."
-        );
-      }
-
-      /*
-       * Guardamos el ID inmediatamente en los refs y estados.
-       */
-      pedidoPagoRef.current =
-        nuevoIdPedido;
-
-      setIdPedidoActual(
-        nuevoIdPedido
+      const totalGeneral = carrito.reduce(
+        (acc, item) =>
+          acc +
+          Number(item.plato.Precio) *
+            item.cantidad,
+        0
       );
 
       /*
-       * Obtener métodos online.
+       * Crear pedido. El mesero lo manda a cocina sin que nadie haya
+       * pagado todavía — el pago pasa después, mientras se prepara.
        */
-      const resMetodos = await axios.get(
-        `${API}/api/metodo-pago/online`
-      );
+      await axios.post(`${API}/api/pedidos/crear`, {
+        idMesa: idMesaActiva,
+        totalPagar: totalGeneral,
+        items,
+      });
 
-      if (
-        !Array.isArray(resMetodos.data) ||
-        resMetodos.data.length === 0
-      ) {
-        /*
-         * Si no existen métodos, dejamos que el usuario vuelva
-         * al carrito y no dejamos una pantalla rota.
-         */
-        setIdPedidoActual(null);
-        pedidoPagoRef.current = null;
-
-        throw new Error(
-          "No existen métodos de pago disponibles."
-        );
-      }
-
-      setMetodosPago(
-        resMetodos.data
-      );
-
-      setMetodoSeleccionado(null);
-      setDatosPago({});
-      setResultadoPago(null);
-      setMensajeRechazo("");
-
-      /*
-       * PRIMERO activamos el ref.
-       *
-       * Esto es importante porque React actualiza los estados
-       * después. El polling nunca debe ganar esta carrera.
-       */
-      pantallaPagoRef.current = true;
-
-      /*
-       * Mantener abierto el carrito/offcanvas.
-       */
-      setCarritoAbierto(true);
-
-      /*
-       * Finalmente mostramos la pasarela.
-       */
-      setPantallaPago(true);
+      setCarrito([]);
+      setCantidades({});
+      setPeticiones({});
+      await verificarPedidoMesa(mesaActiva);
     } catch (error) {
-      console.error(
-        "Error iniciando pago:",
-        error
-      );
-
-      const mensaje =
+      console.error("Error enviando el pedido:", error);
+      alert(
         error.response?.data?.message ||
-        error.response?.data?.error ||
-        error.message ||
-        "No se pudo iniciar el pago.";
-
-      alert(mensaje);
+          error.message ||
+          "No se pudo enviar el pedido."
+      );
     } finally {
       setEnviando(false);
+    }
+  };
+
+  // Pagar un pedido que YA existe — desde que está "en cocina" (o
+  // después). Se usa tanto para el pedido en curso como para el
+  // recién entregado que sigue sin pagar (último recurso).
+  const pagarPedido = async (idPedido, total) => {
+    try {
+      await mostrarPasarelaPara(idPedido, total);
+
+      // Esta pantalla ("Estado de tu Orden") tiene un return temprano
+      // por `if (pedidoActivo) {...}`. Igual que en pagarPedidoEntregado,
+      // hay que salir de ese return para que se renderice el checkout
+      // que está más abajo en el componente — si no, pantallaPago queda
+      // en true pero la pasarela nunca se ve, y como el polling se
+      // detiene mientras pantallaPago es true, el cliente queda
+      // congelado ahí (ni ve el formulario de pago ni se entera cuando
+      // el mesero le entrega el pedido).
+      setPedidoActivo(null);
+    } catch (error) {
+      console.error("Error iniciando pago:", error);
+      alert(
+        error.response?.data?.message ||
+          error.message ||
+          "No se pudo iniciar el pago."
+      );
     }
   };
 
@@ -918,8 +960,18 @@ function VistaCliente() {
        * nunca aquí. Si llegamos a este punto es porque el
        * pago quedó aprobado.
        */
+      // Guardamos el id antes de limpiar el estado para no perderlo
+      // después de aprobar el pago.
+      const idPedidoPagado = idPedidoActual;
+      // OJO: no se puede usar el estado `pedidoRecienEntregado` acá —
+      // pagarPedidoEntregado ya lo dejó en null para poder mostrar la
+      // pasarela. Por eso usamos el ref que guarda ese mismo pedido.
+      const pagoDesdeCierre =
+        pedidoCierreRef.current &&
+        pedidoCierreRef.current.id_Pedidos === idPedidoPagado;
+
       await axios.put(
-        `${API}/api/pedidos/simular-pago/${idPedidoActual}`,
+        `${API}/api/pedidos/simular-pago/${idPedidoPagado}`,
         {
           idMetodoPago:
             metodoSeleccionado,
@@ -927,6 +979,22 @@ function VistaCliente() {
           datos: datosPago,
         }
       );
+
+      // Si el pago se hizo desde "¡Tu pedido ya llegó!", actualizamos
+      // inmediatamente ese pedido en pantalla. Así la vista de cierre
+      // pasa de pago pendiente a "¡Gracias por tu visita!" sin quedarse
+      // mostrando otra vez el botón de pagar.
+      if (pagoDesdeCierre) {
+        // Reconstruimos la pantalla de cierre a partir del ref (ya
+        // que el estado se había vaciado para poder abrir la pasarela)
+        // y la marcamos como pagada, para que se vea directo "¡Gracias
+        // por tu visita!" en vez del menú del día.
+        setPedidoRecienEntregado({
+          ...pedidoCierreRef.current,
+          EstadoPago: "aprobado",
+        });
+        pedidoCierreRef.current = null;
+      }
 
       /*
        * =====================================================
@@ -965,12 +1033,20 @@ function VistaCliente() {
        */
       setCarritoAbierto(false);
 
-      alert(
-        `¡Pago aprobado!\n\nPedido #${idPedidoActual} enviado a cocina.\nMesa #${mesaActiva}.`
-      );
+      // Si el pago se hizo desde la pantalla final de pedido entregado,
+      // no mostramos otro mensaje intermedio: el cliente pasa directo
+      // a "¡Gracias por tu visita!". En un pedido que sigue en cocina
+      // sí mostramos la confirmación normal.
+      if (!pagoDesdeCierre) {
+        alert(
+          `¡Pago aprobado!\n\nPedido #${idPedidoPagado} procesado correctamente.\nMesa #${mesaActiva}.`
+        );
+      }
 
       /*
-       * Consultamos el pedido aprobado.
+       * Consultamos el pedido aprobado. Si veníamos de la pantalla
+       * de cierre, el estado local ya fue actualizado arriba y se
+       * conserva la vista final de "Gracias por tu visita".
        */
       verificarPedidoMesa(
         mesaActiva
@@ -1043,6 +1119,7 @@ function VistaCliente() {
      */
     setIdPedidoActual(null);
     pedidoPagoRef.current = null;
+    pedidoCierreRef.current = null;
 
     setResultadoPago(null);
     setMetodoSeleccionado(null);
@@ -1050,120 +1127,45 @@ function VistaCliente() {
     setCarritoAbierto(true);
   };
 
-  /*
-   * =========================================================
-   * CANCELAR PEDIDO
-   * =========================================================
-   */
+  // Caso poco frecuente: el pedido llegó a la mesa pero sigue sin
+  // pagar (ver nota junto a "Paga si ya terminaste" en el render) —
+  // abre la pasarela directo para ESE pedido, sin pasar por el
+  // carrito.
+  const pagarPedidoEntregado = async () => {
+    if (!pedidoRecienEntregado) return;
+    try {
+      await mostrarPasarelaPara(
+        pedidoRecienEntregado.id_Pedidos,
+        pedidoRecienEntregado.TotalPagar
+      );
 
-  const handleCancelarPedido =
-    async () => {
-      if (!pedidoActivo) {
-        return;
-      }
+      // Guardamos el pedido de cierre en un ref ANTES de vaciar el
+      // estado: lo necesitamos en simularPago para saber que este pago
+      // viene de "¡Tu pedido ya llegó!" y así, al terminar, volver a esa
+      // misma pantalla (ya aprobada) en vez de caer en el menú del día.
+      pedidoCierreRef.current = pedidoRecienEntregado;
 
-      if (
-        pedidoActivo.EstadoPedido !==
-        "pendiente"
-      ) {
-        alert(
-          "Tu pedido ya está siendo preparado en cocina y no puede cancelarse."
-        );
-        return;
-      }
+      // Esta pantalla tiene un return temprano para "¡Tu pedido ya llegó!".
+      // Al abrir la pasarela debemos salir de ese cierre para que se renderice
+      // el checkout que está más abajo en el componente.
+      setPedidoRecienEntregado(null);
+    } catch (error) {
+      console.error("Error iniciando pago:", error);
+      alert(
+        error.response?.data?.message ||
+          error.message ||
+          "No se pudo iniciar el pago."
+      );
+    }
+  };
 
-      const confirmar =
-        window.confirm(
-          "¿Estás seguro de que deseas cancelar tu pedido?"
-        );
-
-      if (!confirmar) {
-        return;
-      }
-
-      try {
-        await axios.put(
-          `${API}/api/pedidos/cancelar/${pedidoActivo.id_Pedidos}`,
-          {
-            motivo:
-              "Cancelado por el cliente desde la mesa",
-          }
-        );
-
-        alert(
-          "Tu pedido ha sido cancelado con éxito."
-        );
-
-        setPedidoActivo(null);
-      } catch (error) {
-        console.error(error);
-
-        const mensaje =
-          error.response?.data?.message ||
-          "Error al intentar cancelar.";
-
-        alert(mensaje);
-
-        /*
-         * Solo volvemos a consultar si NO estamos en pago.
-         */
-        if (!pantallaPagoRef.current) {
-          verificarPedidoMesa(
-            mesaActiva
-          );
-        }
-      }
-    };
-
-  /*
-   * =========================================================
-   * PQRSF BOTÓN + MODAL
-   * =========================================================
-   */
-
-  const btnYModalPQRSF = (
-    <>
-      <button
-        onClick={() => {
-          setPqrsfAbierto(true);
-          setPqrsfMsg(null);
-        }}
-        style={{
-          position: "fixed",
-          bottom: "24px",
-          left: "24px",
-          zIndex: 900,
-          background:
-            "linear-gradient(135deg, #d43737, #ff6b6b)",
-          border: "none",
-          borderRadius: "50px",
-          padding: "14px 22px",
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          color: "#fff",
-          fontWeight: "700",
-          fontSize: "0.88rem",
-          cursor: "pointer",
-          letterSpacing: "1px",
-          boxShadow:
-            "0 4px 20px rgba(212,55,55,0.5)",
-          animation:
-            "pqrsfPulse 2.5s ease-in-out infinite",
-        }}
-      >
-        <span
-          style={{
-            fontSize: "1.1rem",
-          }}
-        >
-          💬
-        </span>
-
-        PQRSF
-      </button>
-
-      {pqrsfAbierto && (
+  // El cliente quiere pedir otra ronda — se sale de la pantalla de
+  // cierre y vuelve al menú normal.
+  const verMenuDeNuevo = () => {
+    setPedidoRecienEntregado(null);
+  };
+  const renderModalPqrsf = () => (
+    pqrsfAbierto && (
         <div
           onClick={() =>
             setPqrsfAbierto(false)
@@ -1519,26 +1521,74 @@ function VistaCliente() {
             </div>
           </div>
         </div>
-      )}
-
-      <style>
-        {`
-          @keyframes pqrsfPulse {
-            0%, 100% {
-              box-shadow:
-                0 4px 20px rgba(212,55,55,0.5);
-            }
-
-            50% {
-              box-shadow:
-                0 4px 32px rgba(212,55,55,0.8),
-                0 0 0 6px rgba(212,55,55,0.15);
-            }
-          }
-        `}
-      </style>
-    </>
+    )
   );
+
+
+  /*
+   * =========================================================
+   * CANCELAR PEDIDO
+   * =========================================================
+   */
+
+  const handleCancelarPedido =
+    async () => {
+      if (!pedidoActivo) {
+        return;
+      }
+
+      if (
+        pedidoActivo.EstadoPedido !==
+        "pendiente"
+      ) {
+        alert(
+          "Tu pedido ya está siendo preparado en cocina y no puede cancelarse."
+        );
+        return;
+      }
+
+      const confirmar =
+        window.confirm(
+          "¿Estás seguro de que deseas cancelar tu pedido?"
+        );
+
+      if (!confirmar) {
+        return;
+      }
+
+      try {
+        await axios.put(
+          `${API}/api/pedidos/cancelar/${pedidoActivo.id_Pedidos}`,
+          {
+            motivo:
+              "Cancelado por el cliente desde la mesa",
+          }
+        );
+
+        alert(
+          "Tu pedido ha sido cancelado con éxito."
+        );
+
+        setPedidoActivo(null);
+      } catch (error) {
+        console.error(error);
+
+        const mensaje =
+          error.response?.data?.message ||
+          "Error al intentar cancelar.";
+
+        alert(mensaje);
+
+        /*
+         * Solo volvemos a consultar si NO estamos en pago.
+         */
+        if (!pantallaPagoRef.current) {
+          verificarPedidoMesa(
+            mesaActiva
+          );
+        }
+      }
+    };
 
   /*
    * =========================================================
@@ -1583,8 +1633,117 @@ function VistaCliente() {
             </span>
           </div>
         </div>
+      </>
+    );
+  }
 
-        {btnYModalPQRSF}
+  /*
+   * =========================================================
+   * PANTALLA DE CIERRE — el pedido ya llegó a la mesa.
+   * =========================================================
+   */
+
+  if (pedidoRecienEntregado) {
+    const sinPagar = pedidoRecienEntregado.EstadoPago !== "aprobado";
+
+    return (
+      <>
+        <div className="vc-container">
+          <header className="vc-header">
+            <span className="vc-badge-mesa">Mesa #{mesaActiva}</span>
+
+            <div className="vc-header-center">
+              <h1 className="vc-logo">Restaurante Mangata</h1>
+            </div>
+
+            <button className="vc-btn-salir" onClick={cerrarSesionCliente}>
+              SALIR
+            </button>
+          </header>
+
+          <div className="vc-cierre">
+            {sinPagar ? (
+              <>
+                <div className="vc-cierre-icono vc-cierre-icono-amarillo">🍽️</div>
+                <h2 className="vc-cierre-titulo">¡Tu pedido ya llegó!</h2>
+                <p className="vc-cierre-subtitulo">
+                  Paga si ya terminaste, o si quieres, paga antes — como prefieras.
+                </p>
+
+                <div className="vc-cierre-total-card">
+                  <span className="vc-cierre-total-label">TOTAL</span>
+                  <span className="vc-cierre-total-valor">
+                    {formatPrecio(pedidoRecienEntregado.TotalPagar)}
+                  </span>
+                </div>
+
+                <button
+                  className="vc-cierre-btn-pagar"
+                  onClick={pagarPedidoEntregado}
+                >
+                  Pagar ahora
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="vc-cierre-icono">💖</div>
+                <h2 className="vc-cierre-titulo vc-cierre-titulo-serif">
+                  ¡Gracias por tu visita!
+                </h2>
+                <p className="vc-cierre-marca">
+                  MANGATA · EL MEJOR RESTAURANTE DEL PEDAZO
+                </p>
+
+                <div className="vc-cierre-tarjeta">
+                  <div className="vc-cierre-tarjeta-header vc-cierre-rosa">
+                    <span>💬</span> TU OPINIÓN NOS IMPORTA
+                  </div>
+                  <p className="vc-cierre-tarjeta-texto">
+                    ¿Alguna petición, queja, felicitación o sugerencia? Cuéntanos,
+                    nos ayuda a mejorar.
+                  </p>
+                  <button
+                    className="vc-cierre-tarjeta-btn vc-cierre-rosa-btn"
+                    onClick={() => setPqrsfAbierto(true)}
+                  >
+                    Dejar un comentario
+                  </button>
+                </div>
+
+                <div className="vc-cierre-tarjeta">
+                  <div className="vc-cierre-tarjeta-header vc-cierre-azul">
+                    <span>🍴</span> ¿TE QUEDASTE CON GANAS DE MÁS?
+                  </div>
+                  <p className="vc-cierre-tarjeta-texto">
+                    Vuelve a ver el menú del día y cierra tu visita con algo más.
+                  </p>
+                  <button
+                    className="vc-cierre-tarjeta-btn vc-cierre-azul-btn"
+                    onClick={verMenuDeNuevo}
+                  >
+                    Ver el menú de nuevo
+                  </button>
+                </div>
+
+                <div className="vc-cierre-salir-nota">
+                  <p className="vc-cierre-salir-titulo">¿Ya terminaste?</p>
+                  <p className="vc-cierre-salir-texto">
+                    No olvides tocar SALIR para dejar la mesa lista para el
+                    siguiente cliente.
+                  </p>
+                  <button
+                    className="vc-cierre-btn-salir-grande"
+                    onClick={cerrarSesionCliente}
+                  >
+                    SALIR
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {renderModalPqrsf()}
       </>
     );
   }
@@ -1704,6 +1863,26 @@ function VistaCliente() {
               </p>
             )}
 
+            {pedidoActivo.EstadoPedido !== "pendiente" &&
+              pedidoActivo.EstadoPago !== "aprobado" && (
+                <div className="vc-pagar-en-cocina">
+                  <p className="vc-pagar-en-cocina-aviso">
+                    💳 Ya puedes pagar mientras esperas
+                  </p>
+                  <button
+                    className="vc-btn-pagar-ahora"
+                    onClick={() =>
+                      pagarPedido(
+                        pedidoActivo.id_Pedidos,
+                        pedidoActivo.TotalPagar
+                      )
+                    }
+                  >
+                    Pagar {formatPrecio(pedidoActivo.TotalPagar)} ahora
+                  </button>
+                </div>
+              )}
+
             <button
               onClick={() =>
                 verificarPedidoMesa(
@@ -1716,8 +1895,6 @@ function VistaCliente() {
             </button>
           </div>
         </div>
-
-        {btnYModalPQRSF}
       </>
     );
   }
@@ -1992,6 +2169,10 @@ function VistaCliente() {
             carritoAbierto
               ? "show"
               : ""
+          } ${
+            pantallaPago
+              ? "vc-pago-centro"
+              : ""
           }`}
           tabIndex="-1"
         >
@@ -2189,15 +2370,15 @@ function VistaCliente() {
 
                     <button
                       className="vc-btn-enviar"
-                      onClick={irAPago}
+                      onClick={enviarPedido}
                       disabled={
                         enviando ||
                         !idMesaActiva
                       }
                     >
                       {enviando
-                        ? "Preparando pago..."
-                        : "Continuar al pago"}
+                        ? "Enviando..."
+                        : "Enviar pedido"}
                     </button>
                   </>
                 )}
@@ -2296,7 +2477,7 @@ function VistaCliente() {
                     }}
                   >
                     {formatPrecio(
-                      totalPedido
+                      totalPagoActual
                     )}
                   </strong>
                 </div>
@@ -2813,8 +2994,6 @@ function VistaCliente() {
           </div>
         </div>
       </div>
-
-      {btnYModalPQRSF}
     </>
   );
 }

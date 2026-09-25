@@ -18,6 +18,7 @@ class AuthController {
     await prefs.setString('token', token);
     await prefs.setInt('usuarioId', usuario.id);
     await prefs.setString('usuarioNombre', usuario.nombre);
+    await prefs.setString('usuarioApellido', usuario.apellido);
     await prefs.setInt('rolId', usuario.rolId);
 
     return usuario;
@@ -28,6 +29,16 @@ class AuthController {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('token');
   }
+
+  // Recuperación de contraseña (no requiere sesión iniciada).
+  Future<String> solicitarCodigo(String email) =>
+      _repository.solicitarCodigo(email);
+
+  Future<String> restablecerPassword(
+    String email,
+    String codigo,
+    String nuevaPassword,
+  ) => _repository.restablecerPassword(email, codigo, nuevaPassword);
 
   Future<void> cerrarSesion() async {
     final prefs = await SharedPreferences.getInstance();

@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../controllers/cocinero_controller.dart';
 import '../formato.dart';
 import '../models/menu_dia_model.dart';
 import '../repositories/auth_repository.dart' show baseUrl;
-import '../repositories/menu_dia_repository.dart';
-import '../widgets/mesero_drawer.dart';
 
-const Color _mNaranja = Color(0xFFE87D2A);
-const Color _mNaranjaBorder = Color(0x4DE87D2A);
-const Color _mBg = Color(0xFF0A0A0A);
-const Color _mCard = Color(0x0AFFFFFF);
-const Color _mMuted = Color(0xFF888888);
+const Color _cVerde = Color(0xFF39FF14);
+const Color _cCard = Color(0x0AFFFFFF);
+const Color _cBorder = Color(0x14FFFFFF);
+const Color _cMuted = Color(0xFF888888);
+const Color _cBg = Color(0xFF0A0A0A);
 
 // Sin imágenes de respaldo por categoría — el admin sube una foto
 // real por plato desde su dispositivo; si un plato todavía no tiene
@@ -20,19 +19,19 @@ Widget _placeholderImagen() {
   return Container(
     color: const Color(0x14FFFFFF),
     alignment: Alignment.center,
-    child: const Icon(Icons.restaurant_menu_rounded, color: _mMuted, size: 28),
+    child: const Icon(Icons.restaurant_menu_rounded, color: _cMuted, size: 28),
   );
 }
 
-class MeseroMenuScreen extends StatefulWidget {
-  const MeseroMenuScreen({super.key});
+class CocineroMenuScreen extends StatefulWidget {
+  const CocineroMenuScreen({super.key});
 
   @override
-  State<MeseroMenuScreen> createState() => _MeseroMenuScreenState();
+  State<CocineroMenuScreen> createState() => _CocineroMenuScreenState();
 }
 
-class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
-  final _repository = MenuDiaRepository();
+class _CocineroMenuScreenState extends State<CocineroMenuScreen> {
+  final _controller = CocineroController();
 
   bool _cargando = true;
   String? _error;
@@ -50,7 +49,7 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
       _error = null;
     });
     try {
-      final menu = await _repository.obtenerMenuHoy();
+      final menu = await _controller.cargarMenuHoy();
       if (!mounted) return;
       setState(() {
         _menu = menu;
@@ -68,8 +67,7 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _mBg,
-      drawer: const MeseroDrawer(seccionActiva: "Menú del día"),
+      backgroundColor: _cBg,
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
@@ -84,7 +82,7 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: _mNaranja),
+            icon: const Icon(Icons.refresh_rounded, color: _cVerde),
             onPressed: _cargando ? null : _cargar,
           ),
         ],
@@ -95,7 +93,7 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
 
   Widget _buildCuerpo() {
     if (_cargando) {
-      return const Center(child: CircularProgressIndicator(color: _mNaranja));
+      return const Center(child: CircularProgressIndicator(color: _cVerde));
     }
     if (_error != null) {
       return Center(
@@ -104,19 +102,19 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.wifi_off_rounded, color: _mMuted, size: 40),
+              const Icon(Icons.wifi_off_rounded, color: _cMuted, size: 40),
               const SizedBox(height: 14),
               Text(
                 _error!,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(color: _mMuted, fontSize: 12.5),
+                style: GoogleFonts.inter(color: _cMuted, fontSize: 12.5),
               ),
               const SizedBox(height: 14),
               TextButton(
                 onPressed: _cargar,
                 child: const Text(
                   "Reintentar",
-                  style: TextStyle(color: _mNaranja),
+                  style: TextStyle(color: _cVerde),
                 ),
               ),
             ],
@@ -146,7 +144,7 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
               Text(
                 "El administrador lo publicará en breve.",
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(color: _mMuted, fontSize: 12.5),
+                style: GoogleFonts.inter(color: _cMuted, fontSize: 12.5),
               ),
             ],
           ),
@@ -158,7 +156,7 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
     final bebidas = menu.items.where((i) => i.idCategoria == 4).toList();
 
     return RefreshIndicator(
-      color: _mNaranja,
+      color: _cVerde,
       backgroundColor: Colors.black,
       onRefresh: _cargar,
       child: ListView(
@@ -184,7 +182,7 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
     child: Text(
       t,
       style: GoogleFonts.spaceGrotesk(
-        color: _mNaranja,
+        color: _cVerde,
         fontSize: 13,
         fontWeight: FontWeight.w700,
         letterSpacing: 2,
@@ -197,9 +195,11 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: _mCard,
+        color: _cCard,
         borderRadius: BorderRadius.circular(14),
-        border: item.esCorriente ? Border.all(color: _mNaranja) : null,
+        border: item.esCorriente
+            ? Border.all(color: _cVerde)
+            : Border.all(color: _cBorder),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -232,14 +232,14 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
                   const SizedBox(height: 4),
                   Text(
                     item.descripcion!,
-                    style: GoogleFonts.inter(color: _mMuted, fontSize: 12),
+                    style: GoogleFonts.inter(color: _cMuted, fontSize: 12),
                   ),
                 ],
                 const SizedBox(height: 8),
                 Text(
                   fmtPesos(item.precio),
                   style: GoogleFonts.spaceGrotesk(
-                    color: _mNaranja,
+                    color: _cVerde,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),

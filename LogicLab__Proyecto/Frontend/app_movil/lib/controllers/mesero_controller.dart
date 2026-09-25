@@ -85,8 +85,29 @@ class MeseroController {
     return _repository.modificarPedido(idPedido, payload);
   }
 
+  Future<void> agregarItemAPedido(int idPedido, Map<String, dynamic> item) =>
+      _repository.agregarItem(idPedido, item);
+
+  Future<void> quitarItemDePedido(int idPedido, int idDetalle) =>
+      _repository.quitarItem(idPedido, idDetalle);
+
+  Future<void> actualizarCantidadItem(
+    int idPedido,
+    int idDetalle,
+    int cantidad,
+    double precioFinal,
+  ) => _repository.actualizarCantidadItem(
+    idPedido,
+    idDetalle,
+    cantidad,
+    precioFinal,
+  );
+
   Future<void> cerrarCuenta(int idPedido, String metodoPago) =>
       _repository.cerrarCuenta(idPedido, metodoPago);
+
+  Future<void> marcarPagoPresencial(int idPedido, String metodoPago) =>
+      _repository.marcarPagoPresencial(idPedido, metodoPago);
 
   Future<List<Map<String, dynamic>>> cargarMetodosPago() =>
       _repository.obtenerMetodosPago();

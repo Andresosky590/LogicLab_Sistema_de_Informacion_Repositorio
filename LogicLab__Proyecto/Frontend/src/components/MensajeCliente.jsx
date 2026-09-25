@@ -22,6 +22,13 @@ function MensajeCliente() {
   const [motivoCancelacion, setMotivoCancelacion] = useState("");
   const [mostrarModalModificar, setMostrarModalModificar] = useState(false);
   const [itemsModificando, setItemsModificando] = useState([]);
+  const [mostrarModalCobrar, setMostrarModalCobrar] = useState(false);
+  const [metodosPago, setMetodosPago] = useState([]);
+  const [cargandoMetodosPago, setCargandoMetodosPago] = useState(false);
+  const [menuDelDiaModal, setMenuDelDiaModal] = useState([]);
+  const [cargandoMenuModal, setCargandoMenuModal] = useState(false);
+  const [procesandoDetalle, setProcesandoDetalle] = useState(null);
+  const [agregandoPlato, setAgregandoPlato] = useState(null);
 
   const reproducirAlerta = () => {
     if (sonidoRef.current) {
@@ -82,6 +89,41 @@ function MensajeCliente() {
     }
   };
 
+  // El cliente pidió por su cuenta desde el QR pero prefiere pagarle
+  // al mesero en persona en vez de usar la pasarela online. Distinto
+  // de "cerrar cuenta": esto solo marca el pago, el pedido sigue su
+  // camino normal hacia cocina en vez de saltar directo a "entregado".
+  const abrirModalCobrar = async (pedido) => {
+    setPedidoSeleccionado(pedido);
+    setMostrarModalCobrar(true);
+    setCargandoMetodosPago(true);
+
+    try {
+      const res = await axios.get(`${API}/api/metodo-pago/listar`);
+      setMetodosPago(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error("Error cargando métodos de pago:", error);
+      setMetodosPago([]);
+      alert("No se pudieron cargar los métodos de pago.");
+    } finally {
+      setCargandoMetodosPago(false);
+    }
+  };
+
+  const confirmarCobroPresencial = async (metodoPago) => {
+    try {
+      await axios.put(
+        `${API}/api/pedidos/pago-presencial/${pedidoSeleccionado.id_Pedidos}`,
+        { metodoPago }
+      );
+      setMostrarModalCobrar(false);
+      await cargarPedidos();
+    } catch (error) {
+      console.error(error);
+      alert(error.response?.data?.message || "No se pudo registrar el pago.");
+    }
+  };
+
   const tomarPedido = async (idPedido, nombreMeseroActual) => {
     const usuario = JSON.parse(sessionStorage.getItem("usuario"));
     const idUsuario = usuario?.id_Usuarios_Restaurante ?? usuario?.id;
@@ -132,7 +174,7 @@ function MensajeCliente() {
     }
   };
 
-  const abrirModalModificar = (pedido) => {
+  const abrirModalModificar = async (pedido) => {
     if (pedido.EstadoPedido !== "pendiente") {
       alert("Solo se puede modificar un pedido mientras está Pendiente.");
       return;
@@ -145,51 +187,109 @@ function MensajeCliente() {
     }));
     setItemsModificando(itemsConUnitario);
     setMostrarModalModificar(true);
+
+    // Menú para poder agregar algo nuevo (no solo lo que ya tenía).
+    setCargandoMenuModal(true);
+    try {
+      const res = await axios.get(`${API}/api/menu-dia/hoy`);
+      setMenuDelDiaModal(res.data && Array.isArray(res.data.items) ? res.data.items : []);
+    } catch (error) {
+      console.error("Error cargando el menú:", error);
+      setMenuDelDiaModal([]);
+    } finally {
+      setCargandoMenuModal(false);
+    }
   };
 
-  const cambiarCantidadItem = (idDetalle, cambio) => {
-    const nuevosItems = itemsModificando.map(item => {
-      if (item.id_Detalle_Pedidos === idDetalle) {
-        const nuevaCantidad = item.CantidadPedido + cambio;
-        if (nuevaCantidad <= 0) return { ...item, CantidadPedido: 0 };
-        return {
-          ...item,
-          CantidadPedido: nuevaCantidad,
-          PrecioFinal: item.precioUnitario * nuevaCantidad
-        };
-      }
-      return item;
-    }).filter(item => item.CantidadPedido > 0);
-
-    setItemsModificando(nuevosItems);
+  // Trae de nuevo los ítems del pedido desde el backend — es quien
+  // manda sobre las cantidades y el total, nunca se calculan a mano.
+  const refrescarItemsModal = async (idPedido) => {
+    try {
+      const res = await axios.get(`${API}/api/pedidos/${idPedido}/detalles`);
+      const itemsConUnitario = res.data.map(item => ({
+        ...item,
+        precioUnitario: item.PrecioFinal / item.CantidadPedido
+      }));
+      setItemsModificando(itemsConUnitario);
+    } catch (error) {
+      console.error("Error refrescando el pedido:", error);
+    }
+    // El total que se ve en la lista de atrás también queda viejo —
+    // se actualiza en segundo plano, sin cerrar el modal.
+    cargarPedidos();
   };
 
-  const guardarModificacionesPedido = async () => {
-    if (itemsModificando.length === 0) {
-      alert("El pedido debe tener al menos un ítem. Si quieres eliminarlo por completo, usa Cancelar.");
+  // Cada acción (cambiar cantidad, quitar, agregar) llama a su propio
+  // endpoint atómico — nunca se reemplaza la lista completa — para
+  // que esto pueda convivir sin choques con que el cliente siga
+  // agregando cosas al mismo pedido desde su celular al mismo tiempo.
+  const cambiarCantidadItem = async (item, cambio) => {
+    const nuevaCantidad = item.CantidadPedido + cambio;
+    if (nuevaCantidad <= 0) {
+      await quitarItemModal(item, false);
       return;
     }
-    try {
-      const itemsParaEnviar = itemsModificando.map(item => ({
-        idPlato: item.id_Platos,
-        nombrePlato: item.NombrePlato,
-        cantidadPedido: item.CantidadPedido,
-        notasEspeciales: item.NotasEspeciales || null,
-        precioFinal: item.PrecioFinal,
-        idCategoria: item.id_Categoria
-      }));
 
-      await axios.put(`${API}/api/pedidos/modificar/${pedidoSeleccionado.id_Pedidos}`, {
-        items: itemsParaEnviar
-      });
-      alert("Pedido modificado correctamente.");
-      setMostrarModalModificar(false);
-      setPedidoSeleccionado(null);
-      await cargarPedidos();
+    setProcesandoDetalle(item.id_Detalle_Pedidos);
+    try {
+      await axios.put(
+        `${API}/api/pedidos/${pedidoSeleccionado.id_Pedidos}/items/${item.id_Detalle_Pedidos}`,
+        {
+          cantidadPedido: nuevaCantidad,
+          precioFinal: item.precioUnitario * nuevaCantidad,
+        }
+      );
+      await refrescarItemsModal(pedidoSeleccionado.id_Pedidos);
     } catch (error) {
-      console.error("Error al modificar el pedido:", error);
-      alert(error.response?.data?.message || "No se pudo modificar el pedido.");
+      console.error(error);
+      alert(error.response?.data?.message || "No se pudo actualizar la cantidad.");
+    } finally {
+      setProcesandoDetalle(null);
     }
+  };
+
+  const quitarItemModal = async (item, confirmar = true) => {
+    if (confirmar && !window.confirm(`¿Quitar ${item.NombrePlato}?`)) return;
+
+    setProcesandoDetalle(item.id_Detalle_Pedidos);
+    try {
+      await axios.delete(
+        `${API}/api/pedidos/${pedidoSeleccionado.id_Pedidos}/items/${item.id_Detalle_Pedidos}`
+      );
+      await refrescarItemsModal(pedidoSeleccionado.id_Pedidos);
+    } catch (error) {
+      console.error(error);
+      alert(error.response?.data?.message || "No se pudo quitar el ítem.");
+    } finally {
+      setProcesandoDetalle(null);
+    }
+  };
+
+  const agregarDelMenuModal = async (plato) => {
+    setAgregandoPlato(plato.id_Platos);
+    try {
+      await axios.post(`${API}/api/pedidos/${pedidoSeleccionado.id_Pedidos}/items`, {
+        idPlato: plato.id_Platos,
+        nombrePlato: plato.NombrePlato,
+        cantidadPedido: 1,
+        notasEspeciales: null,
+        precioFinal: plato.Precio,
+        idCategoria: plato.id_Categoria,
+      });
+      await refrescarItemsModal(pedidoSeleccionado.id_Pedidos);
+    } catch (error) {
+      console.error(error);
+      alert(error.response?.data?.message || "No se pudo agregar el ítem.");
+    } finally {
+      setAgregandoPlato(null);
+    }
+  };
+
+  const cerrarModalModificar = () => {
+    setMostrarModalModificar(false);
+    setPedidoSeleccionado(null);
+    setItemsModificando([]);
+    setMenuDelDiaModal([]);
   };
 
   return (
@@ -302,8 +402,20 @@ function MensajeCliente() {
                   </button>
                 </div>
 
+                {pedido.EstadoPedido === 'pendiente' && pedido.EstadoPago !== 'aprobado' && (
+                  <button
+                    className="mc-btn-cobrar"
+                    onClick={() => abrirModalCobrar(pedido)}
+                  >
+                    💵 Cobrar aquí (opcional, si el cliente ya te va a pagar)
+                  </button>
+                )}
+
                 {pedido.EstadoPedido === 'pendiente' && (
-                  <button className="mc-btn-confirmar" onClick={() => aprobarPedido(pedido.id_Pedidos)}>
+                  <button
+                    className="mc-btn-confirmar"
+                    onClick={() => aprobarPedido(pedido.id_Pedidos)}
+                  >
                     Enviar a Cocina
                   </button>
                 )}
@@ -335,24 +447,94 @@ function MensajeCliente() {
 
       {mostrarModalModificar && (
         <div className="mc-modal-overlay">
-          <div className="mc-modal-card">
-            <h3 className="mc-modal-titulo">Modificar Cantidades</h3>
+          <div className="mc-modal-card mc-modal-card-grande">
+            <h3 className="mc-modal-titulo">Editar Pedido</h3>
             <p className="mc-modal-subtitulo">Pedido #{pedidoSeleccionado?.id_Pedidos}</p>
+
+            <p className="mc-modal-seccion-label">EN EL PEDIDO</p>
             <div className="mc-modal-lista-items">
-              {itemsModificando.map((item) => (
-                <div key={item.id_Detalle_Pedidos} className="mc-modal-item-row">
-                  <span className="mc-modal-item-nombre">{item.NombrePlato}</span>
-                  <div className="mc-modal-stepper">
-                    <button onClick={() => cambiarCantidadItem(item.id_Detalle_Pedidos, -1)} className="mc-modal-qty-btn">−</button>
-                    <span className="mc-modal-qty-num">{item.CantidadPedido}</span>
-                    <button onClick={() => cambiarCantidadItem(item.id_Detalle_Pedidos, 1)} className="mc-modal-qty-btn">+</button>
+              {itemsModificando.length === 0 && (
+                <p className="mc-modal-vacio-texto">Sin ítems — agrega algo del menú abajo.</p>
+              )}
+              {itemsModificando.map((item) => {
+                const procesando = procesandoDetalle === item.id_Detalle_Pedidos;
+                return (
+                  <div key={item.id_Detalle_Pedidos} className="mc-modal-item-row">
+                    <span className="mc-modal-item-nombre">{item.NombrePlato}</span>
+                    {procesando ? (
+                      <span className="mc-modal-item-cargando">...</span>
+                    ) : (
+                      <div className="mc-modal-stepper">
+                        <button onClick={() => cambiarCantidadItem(item, -1)} className="mc-modal-qty-btn">−</button>
+                        <span className="mc-modal-qty-num">{item.CantidadPedido}</span>
+                        <button onClick={() => cambiarCantidadItem(item, 1)} className="mc-modal-qty-btn">+</button>
+                        <button onClick={() => quitarItemModal(item)} className="mc-modal-btn-quitar" title="Quitar">🗑</button>
+                      </div>
+                    )}
                   </div>
+                );
+              })}
+            </div>
+
+            <p className="mc-modal-seccion-label">AGREGAR OTRA COSA</p>
+            <p className="mc-modal-seccion-nota">
+              Si el cliente quiere cambiar un plato por otro: agrega el nuevo aquí, y quita el viejo arriba.
+            </p>
+            <div className="mc-modal-lista-menu">
+              {cargandoMenuModal && <p className="mc-modal-vacio-texto">Cargando menú...</p>}
+              {!cargandoMenuModal && menuDelDiaModal.length === 0 && (
+                <p className="mc-modal-vacio-texto">No hay menú publicado hoy.</p>
+              )}
+              {menuDelDiaModal.map((plato) => (
+                <div key={plato.id_Platos} className="mc-modal-menu-row">
+                  <div>
+                    <span className="mc-modal-item-nombre">{plato.NombrePlato}</span>
+                    <span className="mc-modal-menu-precio">
+                      $ {Number(plato.Precio).toLocaleString("es-CO")}
+                    </span>
+                  </div>
+                  {agregandoPlato === plato.id_Platos ? (
+                    <span className="mc-modal-item-cargando">...</span>
+                  ) : (
+                    <button onClick={() => agregarDelMenuModal(plato)} className="mc-modal-btn-agregar">+</button>
+                  )}
                 </div>
               ))}
             </div>
+
             <div className="mc-modal-actions">
-              <button onClick={() => setMostrarModalModificar(false)} className="mc-btn-secundario">Cancelar</button>
-              <button onClick={guardarModificacionesPedido} className="mc-btn-confirmar">Guardar Cambios</button>
+              <button onClick={cerrarModalModificar} className="mc-btn-confirmar">Listo</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {mostrarModalCobrar && (
+        <div className="mc-modal-overlay">
+          <div className="mc-modal-card">
+            <h3 className="mc-modal-titulo">Cobrar en persona</h3>
+            <p className="mc-modal-subtitulo">
+              Pedido #{pedidoSeleccionado?.id_Pedidos} · $ {Number(pedidoSeleccionado?.TotalPagar).toLocaleString("es-CO")}
+            </p>
+            <p className="mc-modal-subtitulo">¿Con qué te paga el cliente?</p>
+            <div className="mc-modal-metodos">
+              {cargandoMetodosPago ? (
+                <p className="mc-modal-vacio-texto">Cargando métodos de pago...</p>
+              ) : metodosPago.length === 0 ? (
+                <p className="mc-modal-vacio-texto">No hay métodos de pago disponibles.</p>
+              ) : (
+                metodosPago.map((metodo) => (
+                  <button
+                    key={metodo.id_MetodoPago}
+                    onClick={() => confirmarCobroPresencial(metodo.NombreMetodo)}
+                    className="mc-btn-metodo"
+                  >
+                    {metodo.NombreMetodo}
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="mc-modal-actions">
+              <button onClick={() => setMostrarModalCobrar(false)} className="mc-btn-secundario">Volver</button>
             </div>
           </div>
         </div>

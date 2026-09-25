@@ -13,6 +13,13 @@ const IMG_CATEGORIA = {
   "4": "/CartaBebidas.png",
 }
 
+// Foto real del plato si el admin ya subió una (HU05); si no, cae a la
+// imagen genérica de su categoría.
+const urlImagenPlato = (plato) => {
+  if (plato.ImagenUrl) return `${API}${plato.ImagenUrl}`;
+  return IMG_CATEGORIA[String(plato.id_Categoria)] ?? "/CartaCorriente.png";
+}
+
 function MenuDia() {
   const navigate = useNavigate()
   const [menuDelDia, setMenuDelDia] = useState([]);
@@ -69,7 +76,7 @@ function MenuDia() {
                 {menuPlatos.map((plato, i) => (
                   <div key={i} className="menu-plato-card">
                     <img
-                      src={IMG_CATEGORIA[String(plato.id_Categoria)] ?? "/CartaCorriente.png"}
+                      src={urlImagenPlato(plato)}
                       alt={plato.NombrePlato}
                       className="menu-plato-img"
                     />
@@ -91,7 +98,7 @@ function MenuDia() {
                 {menuBebidas.map((plato, i) => (
                   <div key={i} className="menu-plato-card">
                     <img
-                      src={IMG_CATEGORIA["4"]}
+                      src={urlImagenPlato(plato)}
                       alt={plato.NombrePlato}
                       className="menu-plato-img"
                     />

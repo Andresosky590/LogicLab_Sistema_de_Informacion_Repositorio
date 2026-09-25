@@ -710,6 +710,8 @@ export function LayoutMesero({
                                                     color:
                                                         pagoAprobado
                                                             ? "#2ecc71"
+                                                            : estado === "cancelado"
+                                                            ? "#e74c3c"
                                                             : "#f1c40f"
                                                 }}
                                             >
@@ -717,11 +719,15 @@ export function LayoutMesero({
                                                     className={`bi ${
                                                         pagoAprobado
                                                             ? "bi-check-circle-fill"
+                                                            : estado === "cancelado"
+                                                            ? "bi-x-circle-fill"
                                                             : "bi-hourglass-split"
                                                     }`}
                                                 ></i>{" "}
                                                 {pagoAprobado
                                                     ? `Pagado · ${p.MetodoPago || "Método no indicado"}`
+                                                    : estado === "cancelado"
+                                                    ? "Pago no realizado"
                                                     : "Pago pendiente"}
                                             </span>
                                         </div>

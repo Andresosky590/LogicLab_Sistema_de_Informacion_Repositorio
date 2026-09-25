@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -22,6 +24,7 @@ class MeseroHomeScreen extends StatefulWidget {
 class _MeseroHomeScreenState extends State<MeseroHomeScreen> {
   final _controller = MeseroController();
 
+  Timer? _polling;
   bool _cargando = true;
   String? _error;
   ResumenMesero? _resumen;
@@ -32,13 +35,30 @@ class _MeseroHomeScreenState extends State<MeseroHomeScreen> {
   void initState() {
     super.initState();
     _cargar();
+    // BUGFIX: antes esta pantalla solo cargaba una vez al entrar — si
+    // otra mesa se ocupaba o un pedido se entregaba mientras el
+    // mesero la tenía abierta, no se enteraba sin salir y volver a
+    // entrar. Ahora refresca sola cada 10s, en silencio (sin mostrar
+    // el spinner de carga completa).
+    _polling = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _cargar(silencioso: true),
+    );
   }
 
-  Future<void> _cargar() async {
-    setState(() {
-      _cargando = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    _polling?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _cargar({bool silencioso = false}) async {
+    if (!silencioso) {
+      setState(() {
+        _cargando = true;
+        _error = null;
+      });
+    }
     try {
       final resultados = await Future.wait([
         _controller.cargarResumen(),
@@ -48,10 +68,19 @@ class _MeseroHomeScreenState extends State<MeseroHomeScreen> {
       setState(() {
         _resumen = resultados[0] as ResumenMesero;
         _mesas = resultados[1] as List<Mesa>;
+        _error = null;
         _cargando = false;
       });
     } catch (e) {
       if (!mounted) return;
+      // En segundo plano, si una vuelta del polling falla (ej. se
+      // perdió la red un instante), no reemplazamos la pantalla por
+      // un error — se sigue mostrando lo último que sí cargó bien, y
+      // se reintenta en la próxima vuelta.
+      if (silencioso) {
+        setState(() => _cargando = false);
+        return;
+      }
       setState(() {
         _error = e.toString();
         _cargando = false;

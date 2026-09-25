@@ -504,6 +504,92 @@
 .vc-btn-enviar:hover    { background: #00b8d9; box-shadow: 0 0 22px rgba(0, 217, 255, 0.5); }
 .vc-btn-enviar:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 
+/* ── Pantalla de pago simulado (HU22) ── */
+.vc-pago-titulo {
+  font-size: 0.85rem;
+  color: #999;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin: 18px 0 12px;
+}
+
+.vc-pago-rechazado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 10px;
+  color: #ef4444;
+  font-size: 0.85rem;
+}
+
+.vc-pago-metodos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vc-pago-metodo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  color: #eee;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s, background 0.2s;
+}
+.vc-pago-metodo i { font-size: 1.1rem; color: #999; }
+.vc-pago-metodo:hover { border-color: rgba(0,217,255,0.4); }
+.vc-pago-metodo-activo {
+  border-color: #00d9ff;
+  background: rgba(0,217,255,0.08);
+}
+.vc-pago-metodo-activo i { color: #00d9ff; }
+
+.vc-pago-nota {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 0;
+  font-size: 0.75rem;
+  color: #777;
+}
+
+.vc-btn-pago-aprobar { background: #22c55e; box-shadow: 0 0 16px rgba(34,197,94,0.3); }
+.vc-btn-pago-aprobar:hover    { background: #16a34a; box-shadow: 0 0 22px rgba(34,197,94,0.5); }
+.vc-btn-pago-aprobar:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+.vc-btn-pago-rechazar {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid rgba(239,68,68,0.4);
+  box-shadow: none;
+}
+.vc-btn-pago-rechazar:hover    { background: rgba(239,68,68,0.08); }
+.vc-btn-pago-rechazar:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.vc-btn-volver-carrito {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.vc-btn-volver-carrito:hover { color: #ccc; }
+
 /* ── Sin menú ── */
 .vc-vacio {
   text-align: center;
@@ -679,4 +765,599 @@
 
 @media (max-width: 480px) {
   .vc-offcanvas { max-width: 100%; }
+}
+
+/* =========================================================
+   PASARELA CENTRADA
+   Cuando se está pagando ya no usamos el panel lateral del carrito.
+   La pasarela aparece como una ventana centrada sobre la vista del cliente.
+   ========================================================= */
+.vc-offcanvas.vc-pago-centro {
+  top: 50%;
+  right: auto;
+  left: 50%;
+  width: min(92vw, 540px);
+  max-width: 540px;
+  height: auto;
+  /* Antes: 90vh sin piso, así que en pantallas anchas y bajas la
+     pasarela quedaba "pegada" arriba y abajo, sin margen visible.
+     calc() garantiza un margen mínimo real (32px arriba y abajo)
+     sin importar el alto de la ventana. */
+  max-height: calc(100vh - 64px);
+  border: 1px solid rgba(255, 23, 68, 0.35);
+  border-radius: 18px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.65);
+  transform: translate(-50%, -46%) scale(0.97);
+  overflow-y: auto;
+  overflow-x: hidden;
+  visibility: hidden;
+  /* Scrollbar delgada y acorde al tema, para cuando el
+     formulario de pago (Tarjeta, PSE, etc.) no cabe entero. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 23, 68, 0.45) rgba(255, 255, 255, 0.04);
+}
+
+.vc-offcanvas.vc-pago-centro.show {
+  transform: translate(-50%, -50%) scale(1);
+  visibility: visible;
+}
+
+.vc-offcanvas.vc-pago-centro::-webkit-scrollbar {
+  width: 7px;
+}
+.vc-offcanvas.vc-pago-centro::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
+.vc-offcanvas.vc-pago-centro::-webkit-scrollbar-thumb {
+  background: rgba(255, 23, 68, 0.45);
+  border-radius: 10px;
+}
+.vc-offcanvas.vc-pago-centro::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 23, 68, 0.7);
+}
+
+/* Pantallas amplias: un poco más de aire y ancho para que el
+   formulario de pago no se sienta apretado ni obligue a hacer
+   scroll para ver el botón de confirmar. */
+@media (min-width: 900px) {
+  .vc-offcanvas.vc-pago-centro {
+    width: min(88vw, 600px);
+    max-width: 600px;
+  }
+}
+
+@media (max-width: 600px) {
+  .vc-offcanvas.vc-pago-centro {
+    width: calc(100vw - 24px);
+    max-width: none;
+    max-height: calc(100vh - 32px);
+    border-radius: 16px;
+  }
+}
+
+/* =========================================================
+   CHECKOUT / PASARELA DE PAGO
+   ========================================================= */
+
+.vc-pago {
+    width: 100%;
+    padding: 18px;
+    margin-top: 15px;
+
+    background:
+        linear-gradient(
+            145deg,
+            rgba(20, 20, 20, 0.96),
+            rgba(9, 9, 9, 0.96)
+        );
+
+    border: 1px solid rgba(255, 23, 68, 0.25);
+    border-radius: 16px;
+
+    box-shadow:
+        0 15px 35px rgba(0, 0, 0, 0.45),
+        inset 0 0 20px rgba(255, 23, 68, 0.025);
+}
+
+.vc-pago-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    padding-bottom: 15px;
+    margin-bottom: 16px;
+
+    border-bottom:
+        1px solid rgba(255,255,255,0.08);
+}
+
+.vc-pago-titulo {
+    margin: 0;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.vc-pago-metodos {
+    display: grid;
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+
+    gap: 9px;
+}
+
+.vc-pago-metodo {
+    min-height: 62px;
+
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 11px;
+
+    border:
+        1px solid rgba(255,255,255,0.1);
+
+    border-radius: 11px;
+
+    background:
+        rgba(255,255,255,0.035);
+
+    color: #bbb;
+
+    cursor: pointer;
+
+    transition:
+        0.2s ease;
+
+    text-align: left;
+}
+
+.vc-pago-metodo i {
+    color: #888;
+    font-size: 1.15rem;
+}
+
+.vc-pago-metodo:hover {
+    border-color:
+        rgba(255,23,68,0.5);
+
+    background:
+        rgba(255,23,68,0.06);
+
+    transform: translateY(-1px);
+}
+
+.vc-pago-metodo-activo {
+    border-color: #FF1744 !important;
+
+    background:
+        rgba(255,23,68,0.12) !important;
+
+    color: #fff !important;
+
+    box-shadow:
+        0 0 14px rgba(255,23,68,0.16);
+}
+
+.vc-pago-metodo-activo i {
+    color: #FF1744;
+}
+
+.vc-pago-formulario {
+    margin-top: 16px;
+
+    padding: 16px;
+
+    border-radius: 13px;
+
+    background:
+        rgba(255,255,255,0.025);
+
+    border:
+        1px solid rgba(255,255,255,0.08);
+}
+
+.vc-pago-formulario label {
+    display: block;
+
+    margin:
+        13px 0 6px;
+
+    color: #aaa;
+
+    font-size: 0.76rem;
+
+    font-weight: 600;
+
+    letter-spacing: 0.3px;
+}
+
+.vc-pago-formulario input,
+.vc-pago-formulario select {
+    width: 100%;
+
+    box-sizing: border-box;
+
+    padding: 11px 12px;
+
+    border-radius: 8px;
+
+    border:
+        1px solid rgba(255,255,255,0.12);
+
+    outline: none;
+
+    background:
+        rgba(0,0,0,0.35);
+
+    color: #eee;
+
+    font-size: 0.86rem;
+
+    transition:
+        border 0.2s,
+        box-shadow 0.2s;
+}
+
+.vc-pago-formulario input:focus,
+.vc-pago-formulario select:focus {
+    border-color: #FF1744;
+
+    box-shadow:
+        0 0 0 2px
+        rgba(255,23,68,0.1);
+}
+
+.vc-pago-formulario select option {
+    background: #171717;
+    color: #fff;
+}
+
+.vc-pago-ayuda {
+    display: flex;
+    gap: 7px;
+    align-items: flex-start;
+
+    margin-top: 12px;
+
+    color: #777;
+
+    font-size: 0.72rem;
+
+    line-height: 1.4;
+}
+
+.vc-pago-ayuda i {
+    color: #FF1744;
+}
+
+.vc-pago-rechazado {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+
+    padding: 12px;
+
+    margin-bottom: 15px;
+
+    border:
+        1px solid rgba(231,76,60,0.35);
+
+    border-radius: 10px;
+
+    background:
+        rgba(231,76,60,0.08);
+
+    color: #ff7777;
+
+    font-size: 0.8rem;
+}
+
+.vc-pago-rechazado i {
+    font-size: 1.1rem;
+}
+
+.vc-pago-rechazado strong {
+    display: block;
+    margin-bottom: 3px;
+}
+
+.vc-pago-rechazado p {
+    margin: 0;
+    color: #aaa;
+}
+
+.vc-pago-nota {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+
+    margin:
+        13px 0 0;
+
+    color: #666;
+
+    font-size: 0.68rem;
+
+    text-align: center;
+}
+
+.vc-pago-nota i {
+    color: #FF1744;
+}
+
+.vc-btn-pago-aprobar {
+    background:
+        linear-gradient(
+            135deg,
+            #FF1744,
+            #d50032
+        ) !important;
+
+    color: #fff !important;
+
+    font-weight: 700;
+
+    box-shadow:
+        0 7px 20px
+        rgba(255,23,68,0.2);
+}
+
+.vc-btn-pago-aprobar:hover:not(:disabled) {
+    transform: translateY(-1px);
+
+    box-shadow:
+        0 10px 25px
+        rgba(255,23,68,0.3);
+}
+
+.vc-btn-pago-aprobar:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+@media (max-width: 600px) {
+
+    .vc-pago-metodos {
+        grid-template-columns: 1fr;
+    }
+
+    .vc-pago-header {
+        align-items: flex-start;
+        gap: 15px;
+    }
+
+}
+/* ── Pedido sin pagar todavía (se puede seguir agregando) ── */
+.vc-pedido-sin-pagar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: rgba(255, 140, 0, 0.08);
+  border: 1px solid rgba(255, 140, 0, 0.35);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin: 0 0 24px;
+}
+
+.vc-pedido-sin-pagar-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vc-pedido-sin-pagar-aviso {
+  color: #ff8c00;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.vc-pedido-sin-pagar-total {
+  color: #ccc;
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.vc-btn-pagar-ahora {
+  background: #ff8c00;
+  color: #000;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 22px;
+  font-weight: 900;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.vc-btn-pagar-ahora:hover:not(:disabled) { background: #ffa733; }
+.vc-btn-pagar-ahora:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* ── Pantalla de cierre (pedido entregado) ── */
+.vc-cierre {
+  max-width: 480px;
+  margin: 24px auto 0;
+  padding: 0 20px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.vc-cierre-icono {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(255, 44, 79, 0.12);
+  border: 1.5px solid #ff2c4f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.9rem;
+  margin-bottom: 18px;
+}
+
+.vc-cierre-icono-amarillo {
+  background: rgba(241, 196, 15, 0.12);
+  border-color: #f1c40f;
+}
+
+.vc-cierre-titulo {
+  color: #fff;
+  font-size: 1.5rem;
+  margin: 0 0 6px;
+}
+
+.vc-cierre-titulo-serif { font-family: serif; }
+
+.vc-cierre-subtitulo {
+  color: #999;
+  font-size: 0.9rem;
+  margin: 0 0 20px;
+}
+
+.vc-cierre-marca {
+  color: #00d9ff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin: 0 0 28px;
+}
+
+.vc-cierre-total-card {
+  width: 100%;
+  background: rgba(241, 196, 15, 0.1);
+  border: 1px solid #f1c40f;
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+
+.vc-cierre-total-label {
+  color: #999;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.vc-cierre-total-valor {
+  color: #fff;
+  font-size: 1.7rem;
+  font-weight: 800;
+  font-family: monospace;
+}
+
+.vc-cierre-btn-pagar {
+  width: 100%;
+  padding: 14px;
+  background: #f1c40f;
+  color: #000;
+  border: none;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.vc-cierre-btn-pagar:hover { background: #ffd633; }
+
+.vc-cierre-tarjeta {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+.vc-cierre-tarjeta-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+
+.vc-cierre-rosa { color: #ff2c4f; }
+.vc-cierre-azul { color: #00d9ff; }
+
+.vc-cierre-tarjeta { border: 1px solid rgba(255,255,255,0.08); }
+
+.vc-cierre-tarjeta-texto {
+  color: #999;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  margin: 0 0 14px;
+}
+
+.vc-cierre-tarjeta-btn {
+  width: 100%;
+  padding: 11px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  background: transparent;
+}
+
+.vc-cierre-rosa-btn { border: 1px solid #ff2c4f; color: #ff2c4f; }
+.vc-cierre-rosa-btn:hover { background: rgba(255,44,79,0.1); }
+
+.vc-cierre-azul-btn { border: 1px solid #00d9ff; color: #00d9ff; }
+.vc-cierre-azul-btn:hover { background: rgba(0,217,255,0.1); }
+
+.vc-cierre-salir-nota {
+  width: 100%;
+  margin-top: 14px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.vc-cierre-salir-titulo {
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.92rem;
+  margin: 0 0 4px;
+}
+
+.vc-cierre-salir-texto {
+  color: #888;
+  font-size: 0.78rem;
+  margin: 0 0 14px;
+}
+
+.vc-cierre-btn-salir-grande {
+  width: 100%;
+  padding: 14px;
+  background: #ff2c4f;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.vc-cierre-btn-salir-grande:hover { background: #ff4d6d; }
+
+/* ── Pagar mientras el pedido está en cocina (o después) ── */
+.vc-pagar-en-cocina {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.vc-pagar-en-cocina-aviso {
+  color: #f1c40f;
+  font-weight: 700;
+  font-size: 0.85rem;
+  margin: 0 0 10px;
 }
