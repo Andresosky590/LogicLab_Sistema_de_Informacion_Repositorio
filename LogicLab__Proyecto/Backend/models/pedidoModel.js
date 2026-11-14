@@ -53,7 +53,7 @@ const PedidoModel = {
                 : null;
 
         const query = `
-            INSERT INTO Pedidos
+            INSERT    INTO pedidos
                 (
                     Fecha_Pedido,
                     id_Estado,
@@ -115,7 +115,7 @@ const PedidoModel = {
                 p.MotivoCancelacion,
                 m.Numero_mesa,
                 u.Nombre AS NombreMesero
-            FROM Pedidos p
+               FROM pedidos p
 
             JOIN estados_pedido ep
                 ON ep.id_Estado = p.id_Estado
@@ -123,13 +123,13 @@ const PedidoModel = {
             LEFT JOIN metodo_pago mp
                 ON mp.id_MetodoPago = p.id_MetodoPago
 
-            LEFT JOIN Mesas_Pedidos mpx
+            LEFT    JOIN mesas_pedidos mpx
                 ON mpx.id_Pedidos = p.id_Pedidos
 
-            LEFT JOIN Mesas m
+            LEFT    JOIN mesas m
                 ON m.id_Mesas = mpx.id_Mesas
 
-            LEFT JOIN Usuarios_Restaurante u
+            LEFT    JOIN usuarios_restaurante u
                 ON u.id_Usuarios_Restaurante =
                    p.id_Usuarios_Restaurante
 
@@ -154,8 +154,9 @@ const PedidoModel = {
                 p.TotalPagar,
                 mp.NombreMetodo AS MetodoPago,
                 m.Numero_mesa,
-                u.Nombre AS NombreMesero
-            FROM Pedidos p
+                u.Nombre AS NombreMesero,
+                p.id_Usuarios_Restaurante AS id_Mesero
+               FROM pedidos p
 
             JOIN estados_pedido ep
                 ON ep.id_Estado = p.id_Estado
@@ -163,13 +164,13 @@ const PedidoModel = {
             LEFT JOIN metodo_pago mp
                 ON mp.id_MetodoPago = p.id_MetodoPago
 
-            LEFT JOIN Mesas_Pedidos mpx
+            LEFT    JOIN mesas_pedidos mpx
                 ON mpx.id_Pedidos = p.id_Pedidos
 
-            LEFT JOIN Mesas m
+            LEFT    JOIN mesas m
                 ON m.id_Mesas = mpx.id_Mesas
 
-            LEFT JOIN Usuarios_Restaurante u
+            LEFT    JOIN usuarios_restaurante u
                 ON u.id_Usuarios_Restaurante =
                    p.id_Usuarios_Restaurante
 
@@ -194,7 +195,7 @@ const PedidoModel = {
                 ep.NombreEstado AS EstadoPedido,
                 p.TotalPagar,
                 mp.NombreMetodo AS MetodoPago
-            FROM Pedidos p
+               FROM pedidos p
 
             JOIN estados_pedido ep
                 ON ep.id_Estado = p.id_Estado
@@ -202,10 +203,10 @@ const PedidoModel = {
             LEFT JOIN metodo_pago mp
                 ON mp.id_MetodoPago = p.id_MetodoPago
 
-            INNER JOIN Mesas_Pedidos mpx
+            INNER    JOIN mesas_pedidos mpx
                 ON mpx.id_Pedidos = p.id_Pedidos
 
-            INNER JOIN Mesas m
+            INNER    JOIN mesas m
                 ON m.id_Mesas = mpx.id_Mesas
 
             WHERE m.Numero_mesa = ?
@@ -232,7 +233,7 @@ const PedidoModel = {
                 p.TotalPagar,
                 mp.NombreMetodo AS MetodoPago,
                 m.Numero_mesa
-            FROM Pedidos p
+               FROM pedidos p
 
             JOIN estados_pedido ep
                 ON ep.id_Estado = p.id_Estado
@@ -240,10 +241,10 @@ const PedidoModel = {
             LEFT JOIN metodo_pago mp
                 ON mp.id_MetodoPago = p.id_MetodoPago
 
-            LEFT JOIN Mesas_Pedidos mpx
+            LEFT    JOIN mesas_pedidos mpx
                 ON mpx.id_Pedidos = p.id_Pedidos
 
-            LEFT JOIN Mesas m
+            LEFT    JOIN mesas m
                 ON m.id_Mesas = mpx.id_Mesas
 
             WHERE p.id_Usuarios_Restaurante = ?
@@ -273,7 +274,7 @@ const PedidoModel = {
                 mp.NombreMetodo AS MetodoPago,
                 p.MotivoCancelacion,
                 m.Numero_mesa
-            FROM Pedidos p
+               FROM pedidos p
 
             JOIN estados_pedido ep
                 ON ep.id_Estado = p.id_Estado
@@ -281,10 +282,10 @@ const PedidoModel = {
             LEFT JOIN metodo_pago mp
                 ON mp.id_MetodoPago = p.id_MetodoPago
 
-            LEFT JOIN Mesas_Pedidos mpx
+            LEFT    JOIN mesas_pedidos mpx
                 ON mpx.id_Pedidos = p.id_Pedidos
 
-            LEFT JOIN Mesas m
+            LEFT    JOIN mesas m
                 ON m.id_Mesas = mpx.id_Mesas
 
             WHERE p.id_Pedidos = ?
@@ -298,21 +299,28 @@ const PedidoModel = {
     // cocina lo viera. Ahora el pago pasa mientras el pedido ya está
     // en preparación (o después), así que este candado ya no aplica:
     // el mesero manda a cocina sin que nadie haya pagado todavía.
+    // Al pasar a "entregado" se guarda la hora (FechaEntrega): de ahí
+    // se calcula cuánto lleva la mesa con su pedido para avisar al mesero.
     updateEstado: (id, estado, callback) => {
 
         const query = `
-            UPDATE Pedidos
+               UPDATE pedidos
 
-            SET id_Estado = (
-                SELECT id_Estado
-                FROM estados_pedido
-                WHERE NombreEstado = ?
-            )
+            SET
+                id_Estado = (
+                    SELECT id_Estado
+                    FROM estados_pedido
+                    WHERE NombreEstado = ?
+                ),
+                FechaEntrega = CASE
+                    WHEN ? = 'entregado' THEN NOW()
+                    ELSE FechaEntrega
+                END
 
             WHERE id_Pedidos = ?
         `;
 
-        db.query(query, [estado, id], callback);
+        db.query(query, [estado, estado, id], callback);
     },
 
     actualizarPago: (
@@ -326,7 +334,7 @@ const PedidoModel = {
     ) => {
 
         const query = `
-            UPDATE Pedidos
+               UPDATE pedidos
 
             SET
                 id_MetodoPago = ?,
@@ -376,21 +384,43 @@ const PedidoModel = {
         );
     },
 
+    findAsignacion: (idPedido, callback) => {
+
+        const query = `
+            SELECT
+                p.id_Usuarios_Restaurante AS idMesero,
+                u.Nombre AS NombreMesero,
+                ep.NombreEstado AS EstadoPedido
+               FROM pedidos p
+            JOIN estados_pedido ep
+                ON ep.id_Estado = p.id_Estado
+            LEFT    JOIN usuarios_restaurante u
+                ON u.id_Usuarios_Restaurante = p.id_Usuarios_Restaurante
+            WHERE p.id_Pedidos = ?
+        `;
+
+        db.query(query, [idPedido], callback);
+    },
+
     asignarMesero: (idPedido, idUsuario, callback) => {
 
         const query = `
-            UPDATE Pedidos
+               UPDATE pedidos
             SET id_Usuarios_Restaurante = ?
             WHERE id_Pedidos = ?
+              AND (
+                    id_Usuarios_Restaurante IS NULL
+                 OR id_Usuarios_Restaurante = ?
+              )
         `;
 
-        db.query(query, [idUsuario, idPedido], callback);
+        db.query(query, [idUsuario, idPedido, idUsuario], callback);
     },
 
     updateTotal: (id, total, callback) => {
 
         const query = `
-            UPDATE Pedidos
+               UPDATE pedidos
             SET TotalPagar = ?
             WHERE id_Pedidos = ?
         `;
@@ -406,10 +436,10 @@ const PedidoModel = {
     recalcularTotal: (idPedido, callback) => {
 
         const query = `
-            UPDATE Pedidos
+               UPDATE pedidos
             SET TotalPagar = (
                 SELECT COALESCE(SUM(PrecioFinal), 0)
-                FROM Detalle_Pedidos
+                   FROM detalle_pedidos
                 WHERE id_Pedidos = ?
             )
             WHERE id_Pedidos = ?
@@ -421,7 +451,7 @@ const PedidoModel = {
     cancelar: (id, motivo, requiereReembolso, callback) => {
 
         const query = `
-            UPDATE Pedidos
+               UPDATE pedidos
 
             SET
                 id_Estado = (
@@ -465,7 +495,7 @@ const PedidoModel = {
     cancelarPendientesSinPagarDeLaMesa: (idMesa, callback) => {
 
         const query = `
-            UPDATE Pedidos
+               UPDATE pedidos
 
             SET
                 id_Estado = (
@@ -477,7 +507,7 @@ const PedidoModel = {
 
             WHERE id_Pedidos IN (
                   SELECT id_Pedidos
-                  FROM Mesas_Pedidos
+                     FROM mesas_pedidos
                   WHERE id_Mesas = ?
               )
               AND EstadoPago != 'aprobado'
@@ -500,7 +530,7 @@ const PedidoModel = {
     marcarReembolsado: (id, callback) => {
 
         const query = `
-            UPDATE Pedidos
+               UPDATE pedidos
 
             SET EstadoReembolso = 'reembolsado'
 
@@ -514,7 +544,7 @@ const PedidoModel = {
     cerrarCuenta: (id, metodoPago, callback) => {
 
         const query = `
-            UPDATE Pedidos
+               UPDATE pedidos
 
             SET
                 id_Estado = (
@@ -531,6 +561,7 @@ const PedidoModel = {
 
                 EstadoPago = 'aprobado',
                 FechaPago = NOW(),
+                FechaEntrega = NOW(),
 
                 ReferenciaPago =
                     CONCAT(
@@ -552,7 +583,7 @@ const PedidoModel = {
     vincularMesa: (idPedido, idMesa, callback) => {
 
         const query = `
-            INSERT INTO Mesas_Pedidos
+            INSERT    INTO mesas_pedidos
                 (id_Mesas, id_Pedidos)
 
             VALUES (?, ?)

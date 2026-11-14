@@ -5,7 +5,7 @@ const EmailService = require("./emailService");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken")
 
-const SECRET = "mangata_secret_password"
+const { JWT_SECRET: SECRET } = require("../config/auth")
 
 // ── Recuperación de contraseña ───────────────────────────────────────────
 const MINUTOS_VIGENCIA      = 15; // el código vence a los 15 minutos

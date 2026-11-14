@@ -34,6 +34,10 @@ const UserController = {
 
         UserService.registerUser({ nombre, apellido, email, password, tipoDocId, rolId }, (err) => {
             if (err) {
+                console.error("Error al registrar usuario:", err);
+                if (err.code === "ER_DUP_ENTRY") {
+                    return res.status(409).json({ message: "Ese correo ya está en uso por otro empleado." });
+                }
                 if (err.status) return res.status(err.status).json({ message: err.message });
                 return res.status(500).json({ error: "Error al registrar el usuario" });
             }
@@ -69,6 +73,10 @@ const UserController = {
 
         UserService.updateUser(id, { nombre, apellido, email, password: password || null, rolId }, (err) => {
             if (err) {
+                console.error("Error al actualizar usuario:", err);
+                if (err.code === "ER_DUP_ENTRY") {
+                    return res.status(409).json({ message: "Ese correo ya está en uso por otro empleado." });
+                }
                 if (err.status) return res.status(err.status).json({ message: err.message });
                 return res.status(500).json({ error: "Error al actualizar el usuario" });
             }

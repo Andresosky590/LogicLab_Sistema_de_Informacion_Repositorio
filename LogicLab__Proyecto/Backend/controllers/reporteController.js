@@ -11,16 +11,20 @@ const ReporteController = {
         let filtroFecha;
         switch (periodo) {
             case "esta_semana":
-                filtroFecha = `YEARWEEK(p.Fecha_Pedido, 1) = YEARWEEK(CURDATE(), 1)`;
+                // Rango semiabierto: lunes 00:00 hasta el próximo lunes.
+                // Evita inconsistencias de YEARWEEK en cambios de año y permite
+                // que MySQL aproveche un índice sobre Fecha_Pedido.
+                filtroFecha = `p.Fecha_Pedido >= DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)
+                           AND p.Fecha_Pedido <  DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY)`;
                 break;
             case "mes_pasado":
-                filtroFecha = `YEAR(p.Fecha_Pedido)  = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
-                           AND MONTH(p.Fecha_Pedido) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))`;
+                filtroFecha = `p.Fecha_Pedido >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01')
+                           AND p.Fecha_Pedido <  DATE_FORMAT(CURDATE(), '%Y-%m-01')`;
                 break;
             case "este_mes":
             default:
-                filtroFecha = `YEAR(p.Fecha_Pedido) = YEAR(CURDATE())
-                           AND MONTH(p.Fecha_Pedido) = MONTH(CURDATE())`;
+                filtroFecha = `p.Fecha_Pedido >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                           AND p.Fecha_Pedido <  DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)`;
                 break;
         }
 
@@ -39,7 +43,7 @@ const ReporteController = {
                 COUNT(CASE WHEN mp.NombreMetodo = 'Efectivo'      THEN 1 END) AS pagos_efectivo,
                 COUNT(CASE WHEN mp.NombreMetodo = 'Tarjeta'       THEN 1 END) AS pagos_tarjeta,
                 COUNT(CASE WHEN mp.NombreMetodo = 'Transferencia' THEN 1 END) AS pagos_transferencia
-            FROM Pedidos p
+               FROM pedidos p
             JOIN estados_pedido ep ON ep.id_Estado = p.id_Estado
             LEFT JOIN metodo_pago mp ON mp.id_MetodoPago = p.id_MetodoPago
             WHERE ${filtroFecha}
@@ -51,7 +55,7 @@ const ReporteController = {
                 DATE(p.Fecha_Pedido)                                        AS fecha,
                 COUNT(*)                                                     AS pedidos,
             COALESCE( SUM( CASE WHEN ep.NombreEstado = 'entregado' AND p.EstadoPago = 'aprobado' THEN p.TotalPagar END ), 0 ) AS ingresos
-            FROM Pedidos p
+               FROM pedidos p
             JOIN estados_pedido ep ON ep.id_Estado = p.id_Estado
             WHERE ${filtroFecha}
             GROUP BY DATE(p.Fecha_Pedido)
@@ -71,7 +75,7 @@ const ReporteController = {
                 mp.NombreMetodo                      AS metodo,
                 COUNT(*)                             AS cantidad,
                 COALESCE(SUM(p.TotalPagar), 0)       AS total
-            FROM Pedidos p
+               FROM pedidos p
             JOIN estados_pedido ep ON ep.id_Estado = p.id_Estado
             JOIN metodo_pago mp ON mp.id_MetodoPago = p.id_MetodoPago
             WHERE ${filtroFecha}
@@ -86,8 +90,8 @@ const ReporteController = {
                 dp.NombrePlato,
                 SUM(dp.CantidadPedido)                   AS veces_pedido,
                 SUM(dp.CantidadPedido * dp.PrecioFinal)  AS ingreso_generado
-            FROM Detalle_Pedidos dp
-            INNER JOIN Pedidos p ON p.id_Pedidos = dp.id_Pedidos
+               FROM detalle_pedidos dp
+            INNER    JOIN pedidos p ON p.id_Pedidos = dp.id_Pedidos
             JOIN estados_pedido ep ON ep.id_Estado = p.id_Estado
             WHERE ${filtroFecha}
               AND ep.NombreEstado = 'entregado'
