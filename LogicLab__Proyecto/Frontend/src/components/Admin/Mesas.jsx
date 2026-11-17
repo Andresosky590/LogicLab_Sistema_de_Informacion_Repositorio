@@ -4,7 +4,7 @@ import QRCode from "qrcode"
 import '../../../Hojas_de_Estilo/Administrador.css'
 import '../../App.css'
 
-const API = "http://localhost:5030"
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030"
 
 // La URL del QR usa el mismo origen donde corre este panel de admin,
 // porque VistaCliente.jsx vive en el mismo proyecto web — a

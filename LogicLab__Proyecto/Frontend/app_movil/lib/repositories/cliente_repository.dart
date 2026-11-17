@@ -37,6 +37,24 @@ class ClienteRepository {
     return Mesa.fromJson(jsonDecode(response.body));
   }
 
+  // Marca la mesa como ocupada y conserva el número de comensales para
+  // calcular la alerta de permanencia del mesero.
+  Future<void> ocuparMesa(int idMesa, int personas) async {
+    late http.Response response;
+    try {
+      response = await http.put(
+        Uri.parse("$baseUrl/api/mesas/estado/$idMesa"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"estado": "ocupada", "personas": personas}),
+      );
+    } catch (_) {
+      throw ClienteException("No se pudo registrar la mesa.");
+    }
+    if (response.statusCode != 200) {
+      throw ClienteException("No se pudo registrar la mesa.");
+    }
+  }
+
   // GET /api/pedidos/mesa/:numero — pedidos activos (no cancelados)
   // de esa mesa. Normalmente 0 o 1, pero el backend devuelve una lista.
   Future<List<PedidoCliente>> obtenerPedidosActivos(int numeroMesa) async {

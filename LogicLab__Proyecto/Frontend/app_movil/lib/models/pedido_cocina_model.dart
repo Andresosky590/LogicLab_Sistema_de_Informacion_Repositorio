@@ -31,6 +31,7 @@ class PedidoCocina {
   final DateTime? fecha;
   final String estado;
   final int? numeroMesa;
+  final String? nombreMesero;
   final List<ItemPedidoCocina> detalles;
 
   PedidoCocina({
@@ -38,11 +39,10 @@ class PedidoCocina {
     required this.fecha,
     required this.estado,
     this.numeroMesa,
+    this.nombreMesero,
     this.detalles = const [],
   });
 
-  // Compara solo año/mes/día contra "ahora" — mismo criterio que usa
-  // PedidoMesero.esDeHoy para el resumen del mesero.
   bool get esDeHoy {
     if (fecha == null) return false;
     final ahora = DateTime.now();
@@ -51,8 +51,6 @@ class PedidoCocina {
         fecha!.day == ahora.day;
   }
 
-  // Mismo criterio que usa Panel_Cocinero.jsx: categoría 4 = bebidas,
-  // todo lo demás va junto como "platos".
   List<ItemPedidoCocina> get platos =>
       detalles.where((d) => d.idCategoria != 4).toList();
   List<ItemPedidoCocina> get bebidas =>
@@ -67,6 +65,7 @@ class PedidoCocina {
       numeroMesa: json['Numero_mesa'] is int
           ? json['Numero_mesa']
           : int.tryParse(json['Numero_mesa']?.toString() ?? ""),
+      nombreMesero: json['NombreMesero']?.toString(),
       detalles: detallesJson is List
           ? detallesJson
                 .whereType<Map<String, dynamic>>()

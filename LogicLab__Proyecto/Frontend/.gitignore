@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.production
+
+# Flutter: se regeneran solos
+app_movil/build/
+app_movil/.dart_tool/
+app_movil/.widget_preview/

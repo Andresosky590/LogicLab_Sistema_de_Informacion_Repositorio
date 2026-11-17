@@ -15,8 +15,10 @@ import '../models/usuario_model.dart';
 //
 // Para saber tu IP local en Windows: abre cmd y corre "ipconfig",
 // busca "Dirección IPv4" de tu red WiFi.
-const String baseUrl = "http://localhost:5030";
-
+const String baseUrl = String.fromEnvironment(
+  'API_URL',
+  defaultValue: 'http://localhost:5030',
+);
 // ── IMPORTANTE (HU15 — QR de mesas) ─────────────────────────────────────
 // URL del FRONTEND WEB (Vite), no del backend — es lo que va codificado
 // dentro del QR que el cliente escanea con su celular. El puerto por
@@ -27,7 +29,10 @@ const String baseUrl = "http://localhost:5030";
 // que va a escanear el QR impreso sí necesita que esto sea una dirección
 // a la que su celular pueda llegar — la IP local de tu PC en la red del
 // restaurante, nunca "localhost".
-const String webBaseUrl = "http://localhost:5173";
+const String webBaseUrl = String.fromEnvironment(
+  'WEB_URL',
+  defaultValue: 'http://localhost:5173',
+);
 
 class AuthException implements Exception {
   final String message;

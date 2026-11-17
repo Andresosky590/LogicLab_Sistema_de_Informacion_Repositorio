@@ -3,7 +3,7 @@ import axios from "axios"
 import '../../../Hojas_de_Estilo/Administrador.css';
 import '../../App.css';
 
-const API = "http://localhost:5030";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030";
 
 const rolAId = { "Mesero": 1, "Cocinero": 2, "Administrador": 3 }
 const idARol  = { 1: "Mesero", 2: "Cocinero", 3: "Administrador" }

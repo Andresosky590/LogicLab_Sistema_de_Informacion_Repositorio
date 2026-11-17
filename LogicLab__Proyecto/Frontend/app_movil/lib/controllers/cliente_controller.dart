@@ -20,6 +20,9 @@ class ClienteController {
     return _repository.resolverMesaPorToken(token);
   }
 
+  Future<void> ocuparMesa(int idMesa, int personas) =>
+      _repository.ocuparMesa(idMesa, personas);
+
   Future<List<PedidoCliente>> obtenerPedidosActivos(int numeroMesa) {
     return _repository.obtenerPedidosActivos(numeroMesa);
   }

@@ -545,3 +545,31 @@
   cursor: pointer;
 }
 .mc-modal-btn-agregar:hover { background: #ffa733; }
+
+.mc-btn-mesero.mio {
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  border-color: rgba(46, 204, 113, 0.45);
+}
+
+.mc-btn-mesero.libre { animation: mc-pulso 1.6s ease-in-out infinite; }
+
+@keyframes mc-pulso {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 140, 0, 0.55); }
+  50%      { box-shadow: 0 0 0 6px rgba(255, 140, 0, 0); }
+}
+
+.mc-aviso-tomar {
+  padding: 8px 16px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #ff8c00;
+  background: rgba(255, 140, 0, 0.08);
+  border-bottom: 1px solid rgba(255, 140, 0, 0.25);
+  text-align: center;
+}
+
+.mc-bloqueado { opacity: 0.45; cursor: not-allowed; }
+
+.mc-btn-mesero.tomado { cursor: not-allowed; }
+.mc-btn-mesero.tomado:hover { filter: none; }

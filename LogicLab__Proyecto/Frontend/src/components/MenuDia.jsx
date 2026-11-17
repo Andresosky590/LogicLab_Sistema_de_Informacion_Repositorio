@@ -4,7 +4,7 @@ import axios from "axios"
 import '../App.css';
 import '../../Hojas_de_Estilo/MenuDia.css';
 
-const API = "http://localhost:5030";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030";
 
 const IMG_CATEGORIA = {
   "1": "/CartaCorriente.png",

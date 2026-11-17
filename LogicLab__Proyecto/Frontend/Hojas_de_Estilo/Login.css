@@ -247,7 +247,8 @@
 
 /* --- CAMPOS --- */
 .login-input-staff,
-.login-select-client {
+.login-select-client,
+.login-input-client {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 50px;
@@ -285,6 +286,26 @@
     border-color: var(--neon-green);
     background-color: rgba(25, 255, 160, 0.06);
     box-shadow: 0 0 0 4px rgba(25, 255, 160, 0.12);
+}
+
+.login-input-client:focus {
+    border-color: var(--neon-green);
+    background: rgba(25, 255, 160, 0.06);
+    box-shadow: 0 0 0 4px rgba(25, 255, 160, 0.12);
+}
+
+.login-client-field-label {
+    color: var(--ink);
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin: 3px 0 8px 4px;
+}
+
+.login-client-field-help {
+    color: var(--ink-dim);
+    font-size: 0.72rem;
+    line-height: 1.4;
+    margin: -5px 4px 10px;
 }
 
 .login-select-client option {
@@ -365,6 +386,7 @@
 
 .login-input-staff:focus-visible,
 .login-select-client:focus-visible,
+.login-input-client:focus-visible,
 .login-button-staff:focus-visible,
 .login-button-client:focus-visible {
     outline: 2px solid var(--neon-blue);

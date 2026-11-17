@@ -8,7 +8,7 @@ import {
   reproducirNotificacion,
 } from "./utils/audioHelper";
 
-const API = "http://localhost:5030";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030";
 
 const IMG_CATEGORIA = {
   "1": "/CartaCorriente.png",

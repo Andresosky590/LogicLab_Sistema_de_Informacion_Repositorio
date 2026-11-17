@@ -5,7 +5,7 @@ import "../../Hojas_de_Estilo/Cocinero.css";
 import "../App.css";
 import { inicializarAudio, reproducirNotificacion } from "./utils/audioHelper";
 
-const API = "http://localhost:5030";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030";
 
 const IMG_CATEGORIA = {
   "1": "/CartaCorriente.png",
@@ -191,6 +191,12 @@ function Panel_Cocinero({ usuario }) {
                   <div className="order-card-header">
                     <span className="order-table-badge">
                       MESA {pedido.Numero_mesa}
+                    </span>
+                    <span className="order-table-badge">
+                      MESA {pedido.Numero_mesa}
+                    </span>
+                    <span className="order-mesero">
+                      🧑‍🍳 Mesero: {pedido.NombreMesero ?? "Sin asignar"}
                     </span>
                     <span className="order-total">
                       {formatPrecio(pedido.TotalPagar)}

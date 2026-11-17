@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react"
 import axios from "axios"
 import '../../../Hojas_de_Estilo/Administrador.css'
 
-const API = "http://localhost:5030"
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030"
 const NEON = "#ff1744"
 
 const fmt = n =>

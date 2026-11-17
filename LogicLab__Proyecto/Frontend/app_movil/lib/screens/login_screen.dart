@@ -113,9 +113,8 @@ class _LoginScreenState extends State<LoginScreen>
   void _abrirRecuperacion() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => RecuperarPasswordScreen(
-          emailInicial: _emailController.text.trim(),
-        ),
+        builder: (_) =>
+            RecuperarPasswordScreen(emailInicial: _emailController.text.trim()),
       ),
     );
   }
@@ -146,6 +145,19 @@ class _LoginScreenState extends State<LoginScreen>
       final mesa = await _clienteController.resolverMesaPorToken(token);
       if (!mounted) return;
 
+      if (mesa.estado.toLowerCase() == "ocupada") {
+        throw Exception("Esta mesa ya está ocupada.");
+      }
+
+      final personas = await _preguntarPersonas();
+      if (personas == null || !mounted) {
+        setState(() => _escaneando = false);
+        return;
+      }
+
+      await _clienteController.ocuparMesa(mesa.id, personas);
+      if (!mounted) return;
+
       // BUGFIX: se guarda la sesión de esta mesa para que, si se
       // refresca la página (Flutter Web reinicia toda la app),
       // MangataApp lo mande directo de vuelta acá en vez de al login.
@@ -163,6 +175,37 @@ class _LoginScreenState extends State<LoginScreen>
     } finally {
       if (mounted) setState(() => _escaneando = false);
     }
+  }
+
+  Future<int?> _preguntarPersonas() async {
+    final controlador = TextEditingController();
+    return showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (contexto) => AlertDialog(
+        title: const Text("¿Cuántas personas son?"),
+        content: TextField(
+          controller: controlador,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: "Entre 1 y 20 personas"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(contexto),
+            child: const Text("Cancelar"),
+          ),
+          FilledButton(
+            onPressed: () {
+              final personas = int.tryParse(controlador.text);
+              if (personas == null || personas < 1 || personas > 20) return;
+              Navigator.pop(contexto, personas);
+            },
+            child: const Text("Continuar"),
+          ),
+        ],
+      ),
+    );
   }
 
   // El QR trae "$webBaseUrl/vistacliente?mesa=<token>". Si por algún

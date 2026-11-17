@@ -64,6 +64,7 @@ class PedidoMesero {
   final String? metodoPago;
   final int? numeroMesa;
   final String? nombreMesero;
+  final int? idMesero;
   final List<ItemPedidoMesero> detalles;
 
   PedidoMesero({
@@ -76,6 +77,7 @@ class PedidoMesero {
     required this.numeroMesa,
     required this.nombreMesero,
     required this.detalles,
+    this.idMesero,
   });
 
   bool get esDeHoy {
@@ -107,6 +109,7 @@ class PedidoMesero {
           ? null
           : _aInt(json['Numero_mesa']),
       nombreMesero: json['NombreMesero'],
+      idMesero: json['id_Mesero'] == null ? null : _aInt(json['id_Mesero']),
       detalles: detallesJson is List
           ? detallesJson
                 .whereType<Map<String, dynamic>>()

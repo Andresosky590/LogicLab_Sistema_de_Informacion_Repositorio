@@ -5,7 +5,7 @@ import "../App.css";
 import "../../Hojas_de_Estilo/MensajeCliente.css";
 import { inicializarAudio, reproducirNotificacion } from "./utils/audioHelper";
 
-const API = "http://localhost:5030";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030";
 
 function MensajeCliente() {
   const navigate = useNavigate()
@@ -34,6 +34,29 @@ function MensajeCliente() {
     if (sonidoRef.current) {
       reproducirNotificacion();
     }
+  };
+
+    const getUsuarioActual = () => {
+    const u = JSON.parse(sessionStorage.getItem("usuario") ?? "null");
+    return {
+      id: u?.id_Usuarios_Restaurante ?? u?.id ?? null,
+      nombre: u?.nombre ?? "este usuario",
+    };
+  };
+
+  const esMio = (pedido) =>
+    pedido.id_Mesero != null && Number(pedido.id_Mesero) === Number(getUsuarioActual().id);
+
+  // Devuelve true si el mesero logueado puede seguir; si no, muestra el aviso.
+  const exigirPedidoTomado = (pedido) => {
+    if (esMio(pedido)) return true;
+
+    alert(
+      pedido.id_Mesero
+        ? `🔒 Este pedido lo atiende ${pedido.NombreMesero}.\n\nSolo ese mesero puede modificarlo, cobrarlo, cancelarlo o enviarlo a cocina.`
+        : '⚠️ Primero debes tomar el pedido.\n\nPresiona "Tomar Pedido" en esta tarjeta antes de continuar.'
+    );
+    return false;
   };
 
   useEffect(() => {
@@ -79,14 +102,17 @@ function MensajeCliente() {
     }
   };
 
-  const aprobarPedido = async (idPedido) => {
+  const aprobarPedido = async (pedido) => {
+    if (!exigirPedidoTomado(pedido)) return;
+
     try {
-      await axios.put(`${API}/api/pedidos/estado/${idPedido}`, { estado: "preparando" });
+      await axios.put(`${API}/api/pedidos/estado/${pedido.id_Pedidos}`, { estado: "preparando" });
       alert("Pedido enviado a cocina");
-      await cargarPedidos();
     } catch (error) {
       console.error(error);
+      alert(error.response?.data?.message || "No se pudo enviar el pedido a cocina.");
     }
+    await cargarPedidos();
   };
 
   // El cliente pidió por su cuenta desde el QR pero prefiere pagarle
@@ -94,6 +120,7 @@ function MensajeCliente() {
   // de "cerrar cuenta": esto solo marca el pago, el pedido sigue su
   // camino normal hacia cocina en vez de saltar directo a "entregado".
   const abrirModalCobrar = async (pedido) => {
+    if (!exigirPedidoTomado(pedido)) return;
     setPedidoSeleccionado(pedido);
     setMostrarModalCobrar(true);
     setCargandoMetodosPago(true);
@@ -124,32 +151,38 @@ function MensajeCliente() {
     }
   };
 
-  const tomarPedido = async (idPedido, nombreMeseroActual) => {
-    const usuario = JSON.parse(sessionStorage.getItem("usuario"));
-    const idUsuario = usuario?.id_Usuarios_Restaurante ?? usuario?.id;
-    const nombreUsuario = usuario?.nombre ?? "este usuario";
+  const tomarPedido = async (pedido) => {
+    const { id: idUsuario, nombre } = getUsuarioActual();
 
     if (!idUsuario) {
       alert("No se pudo identificar tu usuario. Vuelve a iniciar sesión.");
       return;
     }
 
-    const mensaje = nombreMeseroActual
-      ? `Este pedido está asignado a ${nombreMeseroActual}. ¿Tomarlo para ${nombreUsuario}?`
-      : `¿Tomar este pedido como ${nombreUsuario}?`;
-    const confirmar = window.confirm(mensaje);
-    if (!confirmar) return;
+    if (esMio(pedido)) {
+      alert("Este pedido ya es tuyo.");
+      return;
+    }
+
+    if (pedido.id_Mesero) {
+      alert(`🔒 Este pedido ya fue tomado por ${pedido.NombreMesero}.\n\nSolo ese mesero puede atenderlo.`);
+      return;
+    }
+
+    if (!window.confirm(`¿Tomar este pedido como ${nombre}?`)) return;
 
     try {
-      await axios.put(`${API}/api/pedidos/asignar/${idPedido}`, { idUsuario });
+      await axios.put(`${API}/api/pedidos/asignar/${pedido.id_Pedidos}`, { idUsuario });
       await cargarPedidos();
     } catch (error) {
       console.error("Error al tomar el pedido:", error);
-      alert("No se pudo tomar el pedido. Intenta de nuevo.");
+      alert(error.response?.data?.message || "No se pudo tomar el pedido. Intenta de nuevo.");
+      await cargarPedidos();
     }
   };
 
   const abrirModalCancelar = (pedido) => {
+    if (!exigirPedidoTomado(pedido)) return;
     setPedidoSeleccionado(pedido);
     setMotivoCancelacion("");
     setMostrarModalCancelar(true);
@@ -171,6 +204,7 @@ function MensajeCliente() {
       await cargarPedidos();
     } catch (error) {
       console.error("Error al cancelar el pedido:", error);
+      alert(error.response?.data?.message || "No se pudo cancelar el pedido.");
     }
   };
 
@@ -179,6 +213,7 @@ function MensajeCliente() {
       alert("Solo se puede modificar un pedido mientras está Pendiente.");
       return;
     }
+    if (!exigirPedidoTomado(pedido)) return;
     setPedidoSeleccionado(pedido);
 
     const itemsConUnitario = [...pedido.platos, ...pedido.bebidas].map(item => ({
@@ -320,32 +355,41 @@ function MensajeCliente() {
           </div>
         ) : (
           pedidosAgrupados.map(pedido => (
-            <div key={pedido.id_Pedidos} className="mc-card">
-              <div className="mc-card-header">
+             <div key={pedido.id_Pedidos} className={`mc-card ${!esMio(pedido) ? "mc-card-sin-tomar" : ""}`}>              
+             <div className="mc-card-header">
                 <span className="mc-badge-mesa">
                   MESA {pedido.Numero_mesa}
                 </span>
 
-                <button
-                  onClick={() => tomarPedido(pedido.id_Pedidos, pedido.NombreMesero)}
-                  className={`mc-btn-mesero ${pedido.NombreMesero ? 'tomado' : 'libre'}`}
-                  title="Haz clic para tomar este pedido"
-                >
-                  {pedido.NombreMesero ? `Tomado por ${pedido.NombreMesero}` : 'Tomar Pedido'}
-                </button>
+              <button
+                onClick={() => tomarPedido(pedido)}
+                className={`mc-btn-mesero ${pedido.NombreMesero ? (esMio(pedido) ? "mio" : "tomado") : "libre"}`}
+                title={pedido.id_Mesero && !esMio(pedido) ? `Ya lo tomó ${pedido.NombreMesero}` : "Haz clic para tomar este pedido"}
+              >
+                {pedido.NombreMesero
+                  ? esMio(pedido) ? "✔ Tomado por ti" : `🔒 Tomado por ${pedido.NombreMesero}`
+                  : "Tomar Pedido"}
+              </button>
 
                 <span className={`mc-badge-estado ${pedido.EstadoPedido}`}>
                   {pedido.EstadoPedido.toUpperCase()}
                 </span>
 
                 <span className="mc-fecha">
-                  {pedido.Fecha_Pedido}
-                </span>
+               {new Date(pedido.Fecha_Pedido.replace(" ", "T")).toLocaleString("es-CO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}                
+               </span>
 
                 <span className="mc-total-header">
                   $ {Number(pedido.TotalPagar).toLocaleString("es-CO")}
                 </span>
               </div>
+              {!esMio(pedido) && (
+                <div className="mc-aviso-tomar">
+                  {pedido.id_Mesero
+                    ? `🔒 Este pedido lo atiende ${pedido.NombreMesero}. Solo puedes verlo.`
+                    : "⚠️ Toma este pedido para poder modificarlo, cobrarlo o enviarlo a cocina."}
+                </div>
+              )}           
 
               <div className="mc-card-body">
                 {pedido.platos.length > 0 && (
@@ -389,33 +433,29 @@ function MensajeCliente() {
 
               <div className="mc-card-footer">
                 <div className="mc-actions-row">
-                  <button
-                    onClick={() => abrirModalModificar(pedido)}
-                    disabled={pedido.EstadoPedido !== 'pendiente'}
-                    title={pedido.EstadoPedido !== 'pendiente' ? 'Solo se puede modificar mientras está Pendiente' : ''}
-                    className="mc-btn-secundario"
-                  >
-                    Modificar
-                  </button>
-                  <button onClick={() => abrirModalCancelar(pedido)} className="mc-btn-peligro">
-                    Cancelar
-                  </button>
+                 <button
+                   onClick={() => abrirModalModificar(pedido)}
+                   disabled={pedido.EstadoPedido !== 'pendiente'}
+                   title={pedido.EstadoPedido !== 'pendiente' ? 'Solo se puede modificar mientras está Pendiente' : ''}
+                   className={`mc-btn-secundario ${!esMio(pedido) ? "mc-bloqueado" : ""}`}
+                 >
+                   Modificar
+                 </button>
+                 <button onClick={() => abrirModalCancelar(pedido)} className={`mc-btn-peligro ${!esMio(pedido) ? "mc-bloqueado" : ""}`}>                 
+                   Cancelar
+                 </button>                 
                 </div>
 
                 {pedido.EstadoPedido === 'pendiente' && pedido.EstadoPago !== 'aprobado' && (
-                  <button
-                    className="mc-btn-cobrar"
-                    onClick={() => abrirModalCobrar(pedido)}
-                  >
+                  <button className={`mc-btn-cobrar ${!esMio(pedido) ? "mc-bloqueado" : ""}`} 
+                  onClick={() => abrirModalCobrar(pedido)}>
                     💵 Cobrar aquí (opcional, si el cliente ya te va a pagar)
                   </button>
                 )}
 
                 {pedido.EstadoPedido === 'pendiente' && (
-                  <button
-                    className="mc-btn-confirmar"
-                    onClick={() => aprobarPedido(pedido.id_Pedidos)}
-                  >
+                  <button className={`mc-btn-confirmar ${!esMio(pedido) ? "mc-bloqueado" : ""}`} 
+                  onClick={() => aprobarPedido(pedido)}>
                     Enviar a Cocina
                   </button>
                 )}

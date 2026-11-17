@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom"
 import '../../Hojas_de_Estilo/Login.css'
 import '../../Hojas_de_Estilo/RecuperarPassword.css'
 
-const API = "http://localhost:5030"
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030"
 const SEGUNDOS_REENVIO = 60
 
 function RecuperarPassword() {

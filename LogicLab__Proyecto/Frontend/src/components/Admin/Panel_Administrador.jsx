@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom"
 import '../../../Hojas_de_Estilo/Administrador.css'
 import '../../App.css'
 
-const API = "http://localhost:5030"
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030"
 
 const PQRSF_ICON_TIPO = {
     "Petición": "📋",

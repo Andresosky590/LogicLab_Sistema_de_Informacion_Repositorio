@@ -3,7 +3,7 @@ import axios from "axios"
 import '../../../Hojas_de_Estilo/Administrador.css'
 import '../../App.css'
 
-const API  = "http://localhost:5030"
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030"
 const NEON = "#ff1744"
 
 // Imagen de respaldo por categoría, para los platos que todavía no
