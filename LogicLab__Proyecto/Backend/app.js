@@ -14,6 +14,7 @@ const MenuDiaController = require("./controllers/Menudiacontroller");
 const NotificacionController = require("./controllers/notificacionController");
 const verificarToken = require("./middlewares/authMiddleware");
 const authOpcional = require("./middlewares/authOpcional");
+const soloAdmin = require("./middlewares/soloAdmin");
 const uploadImagen = require("./middlewares/uploadImagen");
 const { exigirPedidoTomado, soloAlEnviarACocina, soloSiEsMesero } = require("./middlewares/exigirPedidoTomado");
 
@@ -55,15 +56,23 @@ if (!esProduccion || process.env.ENABLE_SWAGGER === "true") {
 
 app.get('/', (req, res) => res.send('API Funcionando Correctamente'));
 
-app.get('/api/usuarios/listar', verificarToken, UserController.getUsers);
-app.get('/api/usuarios/consultar/:id', verificarToken, UserController.getUserById);
-app.post('/api/usuarios/registro', UserController.register);
 app.post('/api/usuarios/login', UserController.login);
-// Recuperación de contraseña (públicas: el usuario aún no puede iniciar sesión)
+app.post('/api/usuarios/solicitud-registro', UserController.solicitarRegistro);
+app.get('/api/tipos-documento', UserController.getTiposDocumento);
 app.post('/api/usuarios/solicitar-codigo', UserController.solicitarCodigo);
 app.post('/api/usuarios/restablecer-password', UserController.restablecerPassword);
-app.put('/api/usuarios/actualizar/:id', verificarToken,UserController.updateUser);
-app.delete('/api/usuarios/eliminar/:id', verificarToken, UserController.deleteUser);
+// Con sesión
+app.get('/api/usuarios/listar', verificarToken, UserController.getUsers);
+app.get('/api/usuarios/consultar/:id', verificarToken, UserController.getUserById);
+// Solo administrador
+app.post('/api/usuarios/registro', verificarToken, soloAdmin, UserController.register);
+app.get('/api/usuarios/listar-todos', verificarToken, soloAdmin, UserController.getUsersConInactivos);
+app.put('/api/usuarios/actualizar/:id', verificarToken, soloAdmin, UserController.updateUser);
+app.delete('/api/usuarios/eliminar/:id', verificarToken, soloAdmin, UserController.deleteUser);
+app.put('/api/usuarios/reactivar/:id', verificarToken, soloAdmin, UserController.reactivarUsuario);
+app.get('/api/usuarios/solicitudes', verificarToken, soloAdmin, UserController.getSolicitudes);
+app.put('/api/usuarios/solicitudes/:id/aprobar', verificarToken, soloAdmin, UserController.aprobarSolicitud);
+app.delete('/api/usuarios/solicitudes/:id', verificarToken, soloAdmin, UserController.descartarSolicitud);
 
 app.get('/api/mesas/listar', MesaController.getMesas);
 app.put('/api/mesas/estado/:id', MesaController.updateEstado);
@@ -118,9 +127,10 @@ app.get('/api/pqrsf/tipos',      PqrsfController.getTipos);
 app.post('/api/pqrsf/crear',     PqrsfController.crear);
 app.get('/api/pqrsf/listar',     verificarToken, PqrsfController.listar);
 
+// --- Menú del día (por secciones) ---
 app.get('/api/menu-dia/hoy', MenuDiaController.getMenuHoy);
-app.post('/api/menu-dia/publicar', verificarToken, MenuDiaController.publicarMenu);
-app.put('/api/menu-dia/desactivar', verificarToken, MenuDiaController.desactivarMenu);
+app.post('/api/menu-dia/publicar', verificarToken, soloAdmin, MenuDiaController.publicarMenu);
+app.put('/api/menu-dia/desactivar', verificarToken, soloAdmin, MenuDiaController.desactivarMenu);
 
 // Manejador de errores de multer (archivo muy grande, tipo no
 // permitido, etc.) — sin esto, Express devolvería un HTML de error

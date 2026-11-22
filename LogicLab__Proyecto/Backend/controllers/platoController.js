@@ -52,23 +52,13 @@ const PlatoController = {
         });
     },
 
+    // Borrado lógico (ver PlatoModel.remove). La imagen se conserva en el
+    // disco porque el plato sigue existiendo en la base de datos.
     deletePlato: (req, res) => {
         const { id } = req.params;
-
-        // Primero consultamos la imagen para poder borrar el archivo
-        // del disco después — si esto falla, igual seguimos con el
-        // borrado del plato (el archivo huérfano no es tan grave
-        // como bloquear la eliminación por un problema aparte).
-        PlatoModel.findById(id, (errBusqueda, filas) => {
-            const imagenUrl = (!errBusqueda && filas && filas[0])
-                ? filas[0].ImagenUrl
-                : null;
-
-            PlatoModel.remove(id, (err) => {
-                if (err) return res.status(500).json({ error: "Error al eliminar el plato" });
-                borrarImagenSiExiste(imagenUrl);
-                res.status(200).json({ message: "Plato eliminado correctamente" });
-            });
+        PlatoModel.remove(id, (err) => {
+            if (err) return res.status(500).json({ error: "Error al eliminar el plato" });
+            res.status(200).json({ message: "Plato eliminado correctamente" });
         });
     },
 

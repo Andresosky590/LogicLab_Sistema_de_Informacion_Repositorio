@@ -28,7 +28,7 @@ const UserService = {
         UserModel.findAll(callback);
     },
 
-    // Para el admin: ver también los usuarios inactivos (historial)
+    // Para el admin: activos e inactivos (para poder reactivar)
     getAllUsersConInactivos: (callback) => {
         UserModel.findAllConInactivos(callback);
     },
@@ -37,26 +37,76 @@ const UserService = {
         UserModel.findById(id, callback);
     },
 
-    registerUser: (userData, callback) => {
+    // ── Crear usuario ─────────────────────────────────────────────────────────
+    // estado = "activo"   → lo crea el administrador (HU13)
+    // estado = "pendiente" → solicitud pública de un empleado nuevo
+    registerUser: (userData, estado, callback) => {
         UserModel.findByEmail(userData.email, (err, results) => {
             if (err) return callback(err);
             if (results.length > 0)
-                return callback({ status: 409, message: "El correo ya existe en la base de datos" });
+                return callback({ status: 409, message: "Ese correo ya está registrado." });
 
             bcrypt.hash(userData.password, 10, (err, hashedPassword) => {
                 if (err) return callback(err);
-                UserModel.create({
-                    nombre:         userData.nombre,
-                    apellido:       userData.apellido,
-                    email:          userData.email,
-                    hashedPassword: hashedPassword,
-                    tipoDocId:      userData.tipoDocId,
-                    rolId:          userData.rolId
-                }, callback);
+                UserModel.create({ ...userData, hashedPassword }, estado, callback);
             });
         });
     },
 
+    // ── Solicitud de registro (pública) ──────────────────────────────────────
+    // Antes de guardar confirma que el tipo de documento esté activo.
+    solicitarRegistro: (userData, callback) => {
+        UserModel.tiposDocumentoActivos((err, tipos) => {
+            if (err) return callback(err);
+            const valido = tipos.some(t => t.id_Tipo_Documento === Number(userData.tipoDocId));
+            if (!valido)
+                return callback({ status: 400, message: "Tipo de documento no válido." });
+
+            UserService.registerUser(userData, "pendiente", callback);
+        });
+    },
+
+    getSolicitudes: (callback) => {
+        UserModel.findPendientes(callback);
+    },
+
+    // ── Aprobar solicitud ─────────────────────────────────────────────────────
+    // El correo de aviso es opcional: si falla, la aprobación igual queda hecha.
+    aprobarSolicitud: (id, rolId, callback) => {
+        UserModel.findById(id, (err, results) => {
+            if (err) return callback(err);
+            const usuario = results[0];
+            if (!usuario || usuario.Estado !== "pendiente")
+                return callback({ status: 404, message: "La solicitud no existe o ya fue atendida." });
+
+            UserModel.aprobar(id, rolId, (err) => {
+                if (err) return callback(err);
+
+                EmailService.enviarAprobacionCuenta(usuario.Email, usuario.Nombre)
+                    .catch(errCorreo => console.error("No se envió el correo de aprobación:", errCorreo.message));
+
+                callback(null);
+            });
+        });
+    },
+
+    // ── Descartar solicitud (se elimina) ─────────────────────────────────────
+    descartarSolicitud: (id, callback) => {
+        UserModel.descartar(id, (err, result) => {
+            if (err) return callback(err);
+            if (result.affectedRows === 0)
+                return callback({ status: 404, message: "La solicitud no existe o ya fue atendida." });
+            callback(null);
+        });
+    },
+
+    getTiposDocumento: (callback) => {
+        UserModel.tiposDocumentoActivos(callback);
+    },
+
+    // ── Login ─────────────────────────────────────────────────────────────────
+    // Primero se valida la contraseña y DESPUÉS el estado: así, sin la clave
+    // correcta nadie puede averiguar si un correo está pendiente o inactivo.
     loginUser: (email, password, callback) => {
         UserModel.findByEmail(email, (err, results) => {
             if (err) return callback(err);
@@ -65,22 +115,21 @@ const UserService = {
 
             const usuario = results[0];
 
-            // Un usuario desactivado (ej. empleado que ya no trabaja aquí)
-            // no puede volver a iniciar sesión, aunque su registro siga existiendo.
-            if (usuario.Activo === 0) {
-                return callback({ status: 403, message: "Este usuario está inactivo" });
-            }
-
             bcrypt.compare(password, usuario.Contraseña_hash, (err, passwordCorrecto) => {
                 if (err) return callback(err);
                 if (!passwordCorrecto)
                     return callback({ status: 401, message: "Credenciales inválidas" });
 
+                if (usuario.Estado === "pendiente")
+                    return callback({ status: 403, message: "Tu solicitud está pendiente de aprobación." });
+                if (usuario.Estado !== "activo")
+                    return callback({ status: 403, message: "Este usuario está inactivo." });
+
                 const token = jwt.sign(
                     { id: usuario.id_Usuarios_Restaurante, rolId: usuario.id_Roles_Usuarios },
-                        SECRET,
+                    SECRET,
                     { expiresIn: "8h" }
-                )
+                );
 
                 return callback(null, {
                     usuario: {
@@ -97,36 +146,27 @@ const UserService = {
     },
 
     // ── Actualizar usuario ────────────────────────────────────────────────────
-    // Si viene password la reencripta y usa updateConPassword,
-    // si no viene la deja intacta y usa update normal
+    // Si viene password la reencripta; si no, la deja intacta.
     updateUser: (id, userData, callback) => {
-        if (userData.password) {
-            bcrypt.hash(userData.password, 10, (err, hash) => {
-                if (err) return callback(err);
-                UserModel.updateConPassword(id, {
-                    nombre:         userData.nombre,
-                    apellido:       userData.apellido,
-                    email:          userData.email,
-                    rolId:          userData.rolId,
-                    hashedPassword: hash
-                }, callback);
-            });
-        } else {
-            UserModel.update(id, {
-                nombre:   userData.nombre,
-                apellido: userData.apellido,
-                email:    userData.email,
-                rolId:    userData.rolId
-            }, callback);
-        }
+        const campos = {
+            nombre:   userData.nombre,
+            apellido: userData.apellido,
+            email:    userData.email,
+            rolId:    userData.rolId
+        };
+        if (!userData.password) return UserModel.update(id, campos, callback);
+
+        bcrypt.hash(userData.password, 10, (err, hashedPassword) => {
+            if (err) return callback(err);
+            UserModel.updateConPassword(id, { ...campos, hashedPassword }, callback);
+        });
     },
 
-    // ── "Eliminar" usuario (borrado lógico) ─────────────────────────────────
+    // ── Desactivar (borrado lógico) ──────────────────────────────────────────
     deleteUser: (id, callback) => {
         UserModel.delete(id, callback);
     },
 
-    // ── Reactivar usuario ────────────────────────────────────────────────────
     reactivarUsuario: (id, callback) => {
         UserModel.reactivar(id, callback);
     },
@@ -140,7 +180,7 @@ const UserService = {
             if (err) return callback(err);
 
             const usuario = results[0];
-            if (!usuario || usuario.Activo === 0) return callback(null);
+            if (!usuario || usuario.Estado !== "activo") return callback(null);
 
             const idUsuario = usuario.id_Usuarios_Restaurante;
 
@@ -177,7 +217,7 @@ const UserService = {
             if (err) return callback(err);
 
             const usuario = results[0];
-            if (!usuario || usuario.Activo === 0) return callback(codigoInvalido);
+            if (!usuario || usuario.Estado !== "activo") return callback(codigoInvalido);
 
             const idUsuario = usuario.id_Usuarios_Restaurante;
 

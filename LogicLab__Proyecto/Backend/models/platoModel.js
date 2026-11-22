@@ -5,7 +5,8 @@ const PlatoModel = {
     findAll: (callback) => {
         const query = `
             SELECT id_Platos, NombrePlato, Precio, Descripcion, id_Categoria, Disponible, ImagenUrl
-               FROM platos
+            FROM platos
+            WHERE Activo = 1
             ORDER BY id_Platos
         `;
         db.query(query, callback);
@@ -42,8 +43,10 @@ const PlatoModel = {
         db.query(query, [datos.nombre, datos.descripcion, datos.precio, datos.id_Categoria, disponible], callback);
     },
 
+    // Borrado lógico: el plato deja de verse, pero se conserva porque
+    // pedidos y menús anteriores lo referencian (FK).
     remove: (id, callback) => {
-        db.query(`DELETE    FROM platos WHERE id_Platos = ?`, [id], callback);
+        db.query(`UPDATE platos SET Activo = 0 WHERE id_Platos = ?`, [id], callback);
     },
 
     update: (id, datos, callback) => {
