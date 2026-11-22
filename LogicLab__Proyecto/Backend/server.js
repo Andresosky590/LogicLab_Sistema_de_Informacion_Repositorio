@@ -1,16 +1,16 @@
-// Carga Backend/config/.env (EMAIL_USER, EMAIL_PASS) antes de arrancar
-// la app. Se usa una ruta absoluta (no el default de dotenv, que solo
-// busca ".env" en la carpeta desde donde se corre el comando) porque
-// el archivo real vive en la subcarpeta config/, no en la raíz de
-// Backend — sin esto, dotenv no lo encontraba nunca (0 variables
-// cargadas) y el servicio de correo caía siempre al modo [DEV].
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "config", ".env") });
 
-const app = require("./app");
+// Hora de Colombia en el servidor (en AWS vendría en UTC). Debe fijarse
+// antes de cargar el resto de módulos, porque new Date() la usa.
+process.env.TZ = process.env.TZ || "America/Bogota";
 
-const PUERTO = 5030;
+const app = require("./app");
+const { iniciarRevisionMesas } = require("./services/notificacionService");
+
+const PUERTO = Number(process.env.PORT) || 5030;
 
 app.listen(PUERTO, () => {
     console.log(`Servidor corriendo con éxito en http://localhost:${PUERTO}`);
+    iniciarRevisionMesas();
 });

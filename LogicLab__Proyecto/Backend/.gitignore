@@ -1,2 +1,18 @@
+# Dependencias (se instalan con npm ci en cada equipo)
 node_modules/
+
+# Variables de entorno con credenciales (se crea a partir de config/.env.example)
 .env
+
+# Imágenes subidas por los usuarios (son datos, se respaldan aparte)
+uploads/
+
+# Respaldos de base de datos y llaves (contienen datos sensibles)
+*.sql
+*.pem
+
+# Registros y archivos del sistema operativo
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

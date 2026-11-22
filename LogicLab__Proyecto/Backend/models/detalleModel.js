@@ -5,7 +5,7 @@ const DetalleModel = {
     // Crear un detalle (un ítem del pedido)
     create: (datos, callback) => {
         const query = `
-            INSERT INTO Detalle_Pedidos 
+            INSERT    INTO detalle_pedidos 
                 (CantidadPedido, NombrePlato, NotasEspeciales, PrecioFinal, id_Pedidos, id_Platos, id_Categoria)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
@@ -27,8 +27,8 @@ const DetalleModel = {
             SELECT dp.id_Detalle_Pedidos, dp.CantidadPedido, dp.NombrePlato,
                    dp.NotasEspeciales, dp.PrecioFinal, dp.id_Platos,
                    dp.id_Categoria, c.NombreCategoria
-            FROM Detalle_Pedidos dp
-            LEFT JOIN Categoria c ON c.id_Categoria = dp.id_Categoria
+               FROM detalle_pedidos dp
+            LEFT    JOIN categoria c ON c.id_Categoria = dp.id_Categoria
             WHERE dp.id_Pedidos = ?
         `;
         db.query(query, [idPedido], callback);
@@ -40,8 +40,8 @@ const DetalleModel = {
             SELECT dp.id_Detalle_Pedidos, dp.CantidadPedido, dp.NombrePlato,
                    dp.NotasEspeciales, dp.PrecioFinal, dp.id_Pedidos,
                    dp.id_Categoria, dp.id_Platos, c.NombreCategoria
-            FROM Detalle_Pedidos dp
-            LEFT JOIN Categoria c ON c.id_Categoria = dp.id_Categoria
+               FROM detalle_pedidos dp
+            LEFT    JOIN categoria c ON c.id_Categoria = dp.id_Categoria
             WHERE dp.id_Pedidos IN (?)
         `;
         db.query(query, [idsPedidos], callback);
@@ -50,7 +50,7 @@ const DetalleModel = {
     // Eliminar todos los detalles de un pedido (para modificar pedido RF-08)
     deleteByPedido: (idPedido, callback) => {
         const query = `
-            DELETE FROM Detalle_Pedidos WHERE id_Pedidos = ?
+            DELETE    FROM detalle_pedidos WHERE id_Pedidos = ?
         `;
         db.query(query, [idPedido], callback);
     },
@@ -59,7 +59,7 @@ const DetalleModel = {
     // para no poder borrar por accidente un detalle de otro pedido.
     deleteById: (idDetalle, idPedido, callback) => {
         const query = `
-            DELETE FROM Detalle_Pedidos
+            DELETE    FROM detalle_pedidos
             WHERE id_Detalle_Pedidos = ? AND id_Pedidos = ?
         `;
         db.query(query, [idDetalle, idPedido], callback);
@@ -70,7 +70,7 @@ const DetalleModel = {
     // que borrar e insertar de nuevo.
     actualizarCantidad: (idDetalle, idPedido, cantidadPedido, precioFinal, callback) => {
         const query = `
-            UPDATE Detalle_Pedidos
+               UPDATE detalle_pedidos
             SET CantidadPedido = ?, PrecioFinal = ?
             WHERE id_Detalle_Pedidos = ? AND id_Pedidos = ?
         `;

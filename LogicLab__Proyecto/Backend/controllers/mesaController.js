@@ -1,5 +1,6 @@
 const MesaModel = require("../models/mesaModel");
 const PedidoModel = require("../models/pedidoModel");
+const { obtenerEstadoMesas } = require("../services/estadoMesasService");
 
 const MesaController = {
 
@@ -19,11 +20,26 @@ const MesaController = {
         });
     },
 
+    // GET /api/mesas/estado-detallado  (personal con token)
+    getEstadoMesas: (req, res) => {
+        obtenerEstadoMesas((err, mesas) => {
+            if (err) {
+                console.error(err);
+                return res.status(500).json({ error: "Error interno del servidor" });
+            }
+            res.status(200).json(mesas);
+        });
+    },
+
     updateEstado: (req, res) => {
         const { id } = req.params;
-        const { estado } = req.body;
+        const { estado, personas } = req.body;
 
         if (!estado) return res.status(400).json({ message: "El campo estado es obligatorio" });
+
+        const nPersonas = Number(personas);
+        const personasValidas =
+            Number.isInteger(nPersonas) && nPersonas >= 1 && nPersonas <= 20;
 
         MesaModel.updateEstado(id, estado, (err) => {
             if (err) return res.status(500).json({ error: "Error al actualizar la mesa" });
@@ -35,6 +51,15 @@ const MesaController = {
             if (estado === "disponible") {
                 PedidoModel.cancelarPendientesSinPagarDeLaMesa(id, (errCancelar) => {
                     if (errCancelar) console.error("Error cancelando pedidos abandonados:", errCancelar);
+                    res.status(200).json({ message: "Estado de mesa actualizado" });
+                });
+                return;
+            }
+
+            // Al ocupar, el cliente indica cuántas personas son.
+            if (estado === "ocupada" && personasValidas) {
+                MesaModel.setPersonas(id, nPersonas, (errPers) => {
+                    if (errPers) console.error("Error guardando personas:", errPers);
                     res.status(200).json({ message: "Estado de mesa actualizado" });
                 });
                 return;

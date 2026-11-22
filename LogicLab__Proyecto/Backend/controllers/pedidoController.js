@@ -174,7 +174,10 @@ const PedidoController = {
 
     getPedidosPorMesero: (req, res) => {
 
-        const { idUsuario } = req.params;
+        const idUsuario =
+            req.usuario?.rolId === 1
+                ? req.usuario.id
+                : req.params.idUsuario;
 
         PedidoModel.findByMesero(
             idUsuario,
@@ -503,42 +506,59 @@ const PedidoController = {
     asignarPedido: (req, res) => {
 
         const { id } = req.params;
-        const { idUsuario } = req.body;
+
+        // Un mesero solo puede tomar pedidos para sí mismo (se ignora el body).
+        const idUsuario =
+            req.usuario?.rolId === 1
+                ? req.usuario.id
+                : req.body.idUsuario;
 
         if (!idUsuario) {
-
-            return res.status(400).json({
-                message:
-                    "idUsuario es obligatorio"
-            });
+            return res.status(400).json({ message: "idUsuario es obligatorio" });
         }
 
-        PedidoModel.asignarMesero(
-            id,
-            idUsuario,
-            (err, result) => {
+        PedidoModel.findAsignacion(id, (err, rows) => {
 
-                if (err) {
-                    return res.status(500).json({
-                        error:
-                            "Error al asignar el pedido"
-                    });
-                }
+            if (err) {
+                return res.status(500).json({ error: "Error interno del servidor" });
+            }
 
-                if (result.affectedRows === 0) {
+            if (rows.length === 0) {
+                return res.status(404).json({ message: "Pedido no encontrado" });
+            }
 
-                    return res.status(404).json({
-                        message:
-                            "Pedido no encontrado"
-                    });
-                }
+            const { idMesero, NombreMesero, EstadoPedido } = rows[0];
 
-                res.status(200).json({
-                    message:
-                        "Pedido asignado correctamente"
+            if (!["pendiente", "preparando"].includes(EstadoPedido)) {
+                return res.status(400).json({
+                    message: "Este pedido ya no se puede tomar (está listo, entregado o cancelado)."
                 });
             }
-        );
+
+            if (idMesero && Number(idMesero) !== Number(idUsuario)) {
+                return res.status(409).json({
+                    codigo: "YA_TOMADO",
+                    message: `Este pedido ya fue tomado por ${NombreMesero}.`
+                });
+            }
+
+            PedidoModel.asignarMesero(id, idUsuario, (err, result) => {
+
+                if (err) {
+                    return res.status(500).json({ error: "Error al asignar el pedido" });
+                }
+
+                // Otro mesero lo tomó justo en este instante.
+                if (result.affectedRows === 0) {
+                    return res.status(409).json({
+                        codigo: "YA_TOMADO",
+                        message: "Otro mesero acaba de tomar este pedido."
+                    });
+                }
+
+                res.status(200).json({ message: "Pedido asignado correctamente" });
+            });
+        });
     },
 
     cancelarPedido: (req, res) => {

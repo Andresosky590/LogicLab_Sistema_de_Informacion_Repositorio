@@ -5,7 +5,8 @@ const PlatoModel = {
     findAll: (callback) => {
         const query = `
             SELECT id_Platos, NombrePlato, Precio, Descripcion, id_Categoria, Disponible, ImagenUrl
-            FROM Platos
+            FROM platos
+            WHERE Activo = 1
             ORDER BY id_Platos
         `;
         db.query(query, callback);
@@ -15,7 +16,7 @@ const PlatoModel = {
     // o de borrar el plato (así se puede borrar el archivo viejo del disco).
     findById: (id, callback) => {
         db.query(
-            `SELECT id_Platos, ImagenUrl FROM Platos WHERE id_Platos = ?`,
+            `SELECT id_Platos, ImagenUrl    FROM platos WHERE id_Platos = ?`,
             [id],
             callback
         );
@@ -25,7 +26,7 @@ const PlatoModel = {
     findAllCategorias: (callback) => {
         const query = `
             SELECT id_Categoria, NombreCategoria
-            FROM Categoria
+               FROM categoria
             WHERE Activo = 1
         `;
         db.query(query, callback);
@@ -33,7 +34,7 @@ const PlatoModel = {
 
     create: (datos, callback) => {
         const query = `
-            INSERT INTO Platos (NombrePlato, Descripcion, Precio, id_Categoria, Disponible)
+            INSERT    INTO platos (NombrePlato, Descripcion, Precio, id_Categoria, Disponible)
             VALUES (?, ?, ?, ?, ?)
         `;
         const disponible = datos.disponible === undefined
@@ -42,13 +43,15 @@ const PlatoModel = {
         db.query(query, [datos.nombre, datos.descripcion, datos.precio, datos.id_Categoria, disponible], callback);
     },
 
+    // Borrado lógico: el plato deja de verse, pero se conserva porque
+    // pedidos y menús anteriores lo referencian (FK).
     remove: (id, callback) => {
-        db.query(`DELETE FROM Platos WHERE id_Platos = ?`, [id], callback);
+        db.query(`UPDATE platos SET Activo = 0 WHERE id_Platos = ?`, [id], callback);
     },
 
     update: (id, datos, callback) => {
         const query = `
-            UPDATE Platos
+               UPDATE platos
             SET Descripcion = ?, Precio = ?
             WHERE id_Platos = ?
         `;
@@ -57,7 +60,7 @@ const PlatoModel = {
 
     updateDisponibilidad: (id, disponible, callback) => {
         const query = `
-            UPDATE Platos
+               UPDATE platos
             SET Disponible = ?
             WHERE id_Platos = ?
         `;
@@ -66,7 +69,7 @@ const PlatoModel = {
 
     updateImagen: (id, imagenUrl, callback) => {
         const query = `
-            UPDATE Platos
+               UPDATE platos
             SET ImagenUrl = ?
             WHERE id_Platos = ?
         `;
@@ -75,11 +78,11 @@ const PlatoModel = {
 
     // Borrado lógico de categoría (los platos que ya la usan no se ven afectados)
     desactivarCategoria: (id, callback) => {
-        db.query(`UPDATE Categoria SET Activo = 0 WHERE id_Categoria = ?`, [id], callback);
+        db.query(`   UPDATE categoria SET Activo = 0 WHERE id_Categoria = ?`, [id], callback);
     },
 
     reactivarCategoria: (id, callback) => {
-        db.query(`UPDATE Categoria SET Activo = 1 WHERE id_Categoria = ?`, [id], callback);
+        db.query(`   UPDATE categoria SET Activo = 1 WHERE id_Categoria = ?`, [id], callback);
     }
 }
 module.exports = PlatoModel;

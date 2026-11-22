@@ -1,6 +1,5 @@
 const jwt = require("jsonwebtoken")
-
-const SECRET = "mangata_secret_password"
+const { JWT_SECRET } = require("../config/auth")
 
 // A diferencia de verificarToken, este middleware NUNCA rechaza la
 // petición. Si hay un token válido en el header, deja los datos del
@@ -17,7 +16,7 @@ const authOpcional = (req, res, next) => {
     const token = authHeader.split(" ")[1]
     if (!token) return next()
 
-    jwt.verify(token, SECRET, (err, decoded) => {
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
         if (!err) req.usuario = decoded
         next()
     })

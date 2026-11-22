@@ -54,6 +54,29 @@ const EmailService = {
                 </div>
             `
         });
+    },
+
+    // Aviso opcional al empleado cuando el admin aprueba su solicitud
+    enviarAprobacionCuenta: async (destino, nombre) => {
+        const transport = getTransporter();
+
+        if (!transport) {
+            console.warn(`[DEV] EMAIL_USER/EMAIL_PASS no configurados. No se envió el aviso de aprobación a ${destino}.`);
+            return;
+        }
+
+        await transport.sendMail({
+            from: `"Restaurante Mangata" <${process.env.EMAIL_USER}>`,
+            to: destino,
+            subject: "Tu cuenta fue aprobada - Mangata",
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 420px; margin: 0 auto; padding: 24px; border: 1px solid #eee; border-radius: 12px;">
+                    <h2 style="margin: 0 0 12px; color: #ff2c4f;">Mangata</h2>
+                    <p>Hola ${escapar(nombre)},</p>
+                    <p>El administrador aprobó tu solicitud de registro. Ya puedes iniciar sesión con tu correo y la contraseña que elegiste.</p>
+                </div>
+            `
+        });
     }
 };
 

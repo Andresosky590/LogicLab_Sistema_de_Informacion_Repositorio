@@ -1,9 +1,11 @@
 {
   "name": "jsonserver",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "npx json-server --watch db.json -m ./node_modules/json-server-auth"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "swagger": "node swagger.js"
   },
   "keywords": [],
   "author": "",
@@ -12,7 +14,7 @@
   "devDependencies": {
     "json-server": "^0.17.4",
     "json-server-auth": "^2.1.0",
-    "swagger-autogen": "^2.23.7"
+    "swagger-autogen": "^2.7.7"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -23,7 +25,7 @@
     "multer": "^2.4.0",
     "mysql2": "^3.22.5",
     "nodemailer": "^10.0.10",
-    "swagger-jsdoc": "^6.3.0",
+    "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
   }
 }
