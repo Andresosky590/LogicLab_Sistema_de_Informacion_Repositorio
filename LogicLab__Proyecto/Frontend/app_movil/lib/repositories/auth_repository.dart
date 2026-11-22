@@ -1,5 +1,5 @@
 import 'dart:convert';
-
+import '../models/tipo_documento_model.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/usuario_model.dart';
@@ -94,6 +94,44 @@ class AuthRepository {
     "nuevaPassword": nuevaPassword,
   });
 
+  // ── Solicitud de registro de empleados nuevos (pública) ─────────────────
+  // Tipos de documento activos para el formulario.
+  Future<List<TipoDocumento>> obtenerTiposDocumento() async {
+    late http.Response response;
+    try {
+      response = await http.get(Uri.parse("$baseUrl/api/tipos-documento"));
+    } catch (e) {
+      throw AuthException(
+        "No se pudo conectar con el servidor. Verifica tu conexión.",
+      );
+    }
+    if (response.statusCode != 200) {
+      throw AuthException("No se pudieron cargar los tipos de documento.");
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) return [];
+    return decoded.map((t) => TipoDocumento.fromJson(t)).toList();
+  }
+
+  // Envía la solicitud; queda pendiente hasta que el admin la apruebe.
+  Future<String> solicitarRegistro({
+    required String nombre,
+    required String apellido,
+    required String email,
+    required int tipoDocId,
+    required String numeroDocumento,
+    required int rolId,
+    required String password,
+  }) => _postMensaje("/api/usuarios/solicitud-registro", {
+    "nombre": nombre,
+    "apellido": apellido,
+    "email": email,
+    "tipoDocId": tipoDocId,
+    "numeroDocumento": numeroDocumento,
+    "rolId": rolId,
+    "password": password,
+  });
+
   // POST sin token (el usuario aún no puede iniciar sesión). Devuelve el
   // "message" del backend o lanza AuthException si algo falla.
   Future<String> _postMensaje(String ruta, Map<String, dynamic> body) async {
@@ -121,7 +159,10 @@ class AuthRepository {
     }
 
     final mensaje = data['message'] as String? ?? "Ocurrió un error";
-    if (response.statusCode != 200) throw AuthException(mensaje);
+    // 200 (recuperación) o 201 (solicitud de registro) son éxito.
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AuthException(mensaje);
+    }
     return mensaje;
   }
 }

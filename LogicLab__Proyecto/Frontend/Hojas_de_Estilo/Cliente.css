@@ -1361,3 +1361,101 @@
   font-size: 0.85rem;
   margin: 0 0 10px;
 }
+/* =============================================
+   CARTA DEL DÍA — estilo menú impreso de restaurante
+   ============================================= */
+.vc-carta {
+  max-width: 900px;
+  margin: 0 auto 40px auto;
+  padding: 34px 40px;
+  background: linear-gradient(180deg, #121619 0%, #0e1215 100%);
+  border: 1px solid rgba(0, 217, 255, 0.22);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 0 6px rgba(0, 217, 255, 0.03);
+  text-align: left;
+}
+
+.vc-carta-seccion + .vc-carta-seccion { margin-top: 34px; }
+
+/* Título de sección con líneas a los lados, como en las cartas */
+.vc-carta-titulo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 18px 0;
+  color: #00d9ff;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
+  font-weight: normal;
+  font-style: italic;
+  letter-spacing: 1px;
+  text-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+}
+.vc-carta-titulo::before,
+.vc-carta-titulo::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 217, 255, 0.45), transparent);
+}
+
+.vc-carta-plato {
+  border-radius: 12px;
+  transition: background 0.2s;
+}
+.vc-carta-plato:hover { background: rgba(255, 255, 255, 0.03); }
+.vc-carta-agregado { background: rgba(0, 217, 255, 0.07); }
+.vc-carta-agotado { opacity: 0.45; }
+
+.vc-carta-fila {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 10px;
+  cursor: pointer;
+}
+.vc-carta-agotado .vc-carta-fila { cursor: default; }
+
+.vc-carta-img {
+  width: 62px;
+  height: 62px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 217, 255, 0.35);
+  flex-shrink: 0;
+}
+
+.vc-carta-texto { flex: 1; min-width: 0; }
+
+/* Nombre .......... $precio */
+.vc-carta-linea { display: flex; align-items: baseline; gap: 8px; }
+.vc-carta-nombre { color: #fff; font-size: 1rem; font-weight: bold; }
+.vc-carta-puntos {
+  flex: 1;
+  min-width: 20px;
+  border-bottom: 2px dotted rgba(255, 255, 255, 0.22);
+  transform: translateY(-4px);
+}
+.vc-carta-precio { color: #00d9ff; font-family: monospace; font-size: 1.05rem; font-weight: bold; white-space: nowrap; }
+.vc-carta-desc { margin: 4px 0 0 0; color: #8a9097; font-size: 0.8rem; font-style: italic; line-height: 1.4; }
+
+.vc-carta-acciones { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.vc-carta-acciones .vc-tarjeta-btn { flex: none; min-width: 92px; }
+.vc-carta-etiqueta-agotado {
+  color: #e74c3c;
+  font-size: 0.75rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.vc-carta-plato .vc-tarjeta-peticion-wrap { padding: 0 10px 12px 88px; border-top: none; }
+
+@media (max-width: 640px) {
+  .vc-carta { padding: 22px 14px; }
+  .vc-carta-fila { flex-wrap: wrap; gap: 12px; }
+  .vc-carta-img { width: 50px; height: 50px; }
+  .vc-carta-texto { flex-basis: calc(100% - 66px); }
+  .vc-carta-acciones { width: 100%; justify-content: flex-end; }
+  .vc-carta-plato .vc-tarjeta-peticion-wrap { padding-left: 10px; }
+}

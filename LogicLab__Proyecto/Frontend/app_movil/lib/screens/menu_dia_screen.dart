@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../controllers/menu_dia_controller.dart';
-import '../models/menu_dia_model.dart';
+import '../formato.dart';
 import '../models/plato_model.dart';
 import '../widgets/admin_drawer.dart';
 
@@ -16,42 +16,14 @@ const Color _mdNeonBorder = Color(0x4DFF1744);
 const Color _mdBg = Color(0xFF0A0A0A);
 const Color _mdCard = Color(0xFF111111);
 const Color _mdMuted = Color(0xFF888888);
+const Color _mdVerde = Color(0xFF2EA043);
 
-// Opciones fijas de la Corriente del Día — idénticas a las de
-// Admin/Menus.jsx en la web, para que ambas plataformas ofrezcan
-// exactamente las mismas combinaciones.
-const _opcionesSopa = [
-  "Sopa de Ajiaco",
-  "Sopa de Pasta",
-  "Sopa de Arroz",
-  "Sopa de Sancocho",
-  "Crema de Ahuyama",
-  "Crema de Champiñones",
-];
-const _opcionesProteina = [
-  "Res",
-  "Cerdo",
-  "Pechuga",
-  "Chuleta",
-  "Pollo Sudado",
-  "Carne Molida",
-];
-const _opcionesPrincipio = [
-  "Frijol",
-  "Arveja",
-  "Lentejas",
-  "Garbanzos",
-  "Espaguetis",
-  "Macarrones",
-  "Poteca de Ahuyama",
-  "Puré de Papa",
-];
-const _opcionesAcompanante = [
-  "Papa Salada",
-  "Tajadas Fritas",
-  "Plátano Maduro",
-  "Yuca Blanca",
-];
+// ================================================================
+// MENÚ HOY (admin) — misma idea que Admin/Menus.jsx en la web, pero
+// adaptada al celular: en vez de arrastrar entre columnas, cada
+// sección tiene "+ Agregar platos" (se eligen por categoría en
+// pestañas) y los platos se reordenan arrastrando el ícono ≡.
+// ================================================================
 
 class MenuDiaScreen extends StatefulWidget {
   const MenuDiaScreen({super.key});
@@ -64,23 +36,14 @@ class _MenuDiaScreenState extends State<MenuDiaScreen> {
   final _controller = MenuDiaController();
 
   bool _cargando = true;
-  bool _publicando = false;
+  bool _procesando = false;
+  bool _publicado = false;
   String? _error;
 
   List<Plato> _platos = [];
   List<Categoria> _categorias = [];
-  MenuDia? _menuActual;
-
-  // Selecciones de la Corriente del Día.
-  final Set<String> _sopas = {};
-  final Set<String> _proteinas = {};
-  final Set<String> _principios = {};
-  final Set<String> _acompanantes = {};
-
-  // Platos/bebidas reales elegidos (categorías 2, 3 y 4).
-  final Set<int> _platosSeleccionados = {};
-
-  String _filtro = "2";
+  List<SeccionEditable> _secciones = [];
+  int _siguienteClave = 0;
 
   @override
   void initState() {
@@ -88,8 +51,18 @@ class _MenuDiaScreenState extends State<MenuDiaScreen> {
     _cargar();
   }
 
+  SeccionEditable _nuevaSeccion(String nombre, [List<int>? platos]) =>
+      SeccionEditable(clave: _siguienteClave++, nombre: nombre, platos: platos);
+
+  Plato? _plato(int id) {
+    for (final p in _platos) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
   // ==============================================================
-  // CARGAR
+  // CARGAR — si ya hay menú hoy, se trae completo para editarlo
   // ==============================================================
 
   Future<void> _cargar() async {
@@ -101,22 +74,21 @@ class _MenuDiaScreenState extends State<MenuDiaScreen> {
     try {
       final datos = await _controller.cargarDatos();
       if (!mounted) return;
+      final menu = datos.menuActual;
       setState(() {
         _platos = datos.platos;
         _categorias = datos.categorias;
-        _menuActual = datos.menuActual;
-
-        // Pre-seleccionamos los platos reales que ya estén publicados hoy
-        // (la Corriente del Día no se puede reconstruir a chips exactos,
-        // solo queda su descripción para mostrarla como referencia).
-        _platosSeleccionados
-          ..clear()
-          ..addAll(
-            (datos.menuActual?.items ?? [])
-                .where((i) => !i.esCorriente)
-                .map((i) => i.idPlatos),
-          );
-
+        _secciones = (menu != null && menu.secciones.isNotEmpty)
+            ? menu.secciones
+                  .map(
+                    (s) => _nuevaSeccion(
+                      s.nombre,
+                      s.platos.map((p) => p.idPlatos).toList(),
+                    ),
+                  )
+                  .toList()
+            : [_nuevaSeccion("Corriente del día")];
+        _publicado = menu != null && menu.secciones.isNotEmpty;
         _cargando = false;
       });
     } catch (e) {
@@ -128,116 +100,233 @@ class _MenuDiaScreenState extends State<MenuDiaScreen> {
     }
   }
 
-  // ==============================================================
-  // PUBLICAR
-  // ==============================================================
+  // Cualquier cambio deja el menú "sin publicar" hasta volver a publicar
+  void _cambiar(VoidCallback cambio) {
+    setState(() {
+      cambio();
+      _publicado = false;
+    });
+  }
 
-  Future<void> _publicar() async {
-    setState(() => _publicando = true);
-
-    final platosMenu = _platos
-        .where((p) => _platosSeleccionados.contains(p.id))
-        .toList();
-
-    try {
-      await _controller.publicar(
-        platosSeleccionados: platosMenu,
-        corriente: {
-          "sopas": _sopas.toList(),
-          "proteinas": _proteinas.toList(),
-          "principios": _principios.toList(),
-          "acompanantes": _acompanantes.toList(),
-        },
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop(); // cierra el modal de confirmación
-      await _cargar(); // trae el menú recién publicado
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Menú del día publicado correctamente."),
-          backgroundColor: Color(0xFF2EA043),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.toString().replaceFirst("MenuDiaException: ", ""),
-          ),
-          backgroundColor: const Color(0xFFE74C3C),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _publicando = false);
-    }
+  void _aviso(String texto, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(texto),
+        backgroundColor: error ? const Color(0xFFE74C3C) : _mdVerde,
+      ),
+    );
   }
 
   // ==============================================================
-  // LIMPIAR (desactivar)
+  // PUBLICAR / LIMPIAR
   // ==============================================================
 
-  Future<void> _limpiar() async {
-    setState(() {
-      _sopas.clear();
-      _proteinas.clear();
-      _principios.clear();
-      _acompanantes.clear();
-      _platosSeleccionados.clear();
-    });
+  Future<void> _confirmarPublicar() async {
+    final error = _controller.validar(_secciones);
+    if (error != null) {
+      _aviso(error, error: true);
+      return;
+    }
+
+    final ok = await _confirmar(
+      titulo: "PUBLICAR MENÚ",
+      contenido: _secciones
+          .map((s) => "• ${s.nombre.trim()} — ${s.platos.length} platos")
+          .join("\n"),
+      boton: "¡Sí, publicar!",
+    );
+    if (ok != true) return;
+
+    setState(() => _procesando = true);
+    try {
+      await _controller.publicar(_secciones);
+      if (!mounted) return;
+      setState(() => _publicado = true);
+      _aviso("Menú publicado: ya lo ven clientes y meseros.");
+    } catch (e) {
+      if (!mounted) return;
+      _aviso(e.toString().replaceFirst("MenuDiaException: ", ""), error: true);
+    } finally {
+      if (mounted) setState(() => _procesando = false);
+    }
+  }
+
+  Future<void> _confirmarLimpiar() async {
+    final ok = await _confirmar(
+      titulo: "RETIRAR MENÚ",
+      contenido:
+          "El menú de hoy dejará de verse para clientes y meseros. ¿Seguro?",
+      boton: "Sí, retirar",
+    );
+    if (ok != true) return;
+
+    setState(() => _procesando = true);
     try {
       await _controller.desactivar();
       if (!mounted) return;
-      setState(() => _menuActual = null);
+      setState(() {
+        _secciones = [_nuevaSeccion("Corriente del día")];
+        _publicado = false;
+      });
+      _aviso("Menú de hoy retirado.");
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("No se pudo desactivar el menú del día."),
-          backgroundColor: Color(0xFFE74C3C),
+      _aviso("No se pudo retirar el menú.", error: true);
+    } finally {
+      if (mounted) setState(() => _procesando = false);
+    }
+  }
+
+  Future<bool?> _confirmar({
+    required String titulo,
+    required String contenido,
+    required String boton,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (contexto) => AlertDialog(
+        backgroundColor: _mdCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: _mdNeonBorder),
         ),
-      );
-    }
+        title: Text(
+          titulo,
+          style: GoogleFonts.spaceGrotesk(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          contenido,
+          style: GoogleFonts.inter(color: _mdMuted, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(contexto).pop(false),
+            child: const Text("Cancelar", style: TextStyle(color: _mdMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(contexto).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _mdNeon,
+              foregroundColor: Colors.black,
+            ),
+            child: Text(boton),
+          ),
+        ],
+      ),
+    );
   }
 
   // ==============================================================
-  // HELPERS
+  // ELEGIR PLATOS PARA UNA SECCIÓN (pestañas por categoría)
   // ==============================================================
 
-  String _fmtPrecio(num precio) {
-    final texto = precio.toStringAsFixed(0);
-    final buffer = StringBuffer();
-    for (int i = 0; i < texto.length; i++) {
-      final posDesdeElFinal = texto.length - i;
-      buffer.write(texto[i]);
-      if (posDesdeElFinal > 1 && posDesdeElFinal % 3 == 1) buffer.write(".");
-    }
-    return "\$$buffer";
-  }
+  void _elegirPlatos(SeccionEditable seccion) {
+    final categorias = _categorias
+        .where((c) => _platos.any((p) => p.idCategoria == c.id))
+        .toList();
+    if (categorias.isEmpty) return;
 
-  bool get _hayCorriente =>
-      _sopas.isNotEmpty ||
-      _proteinas.isNotEmpty ||
-      _principios.isNotEmpty ||
-      _acompanantes.isNotEmpty;
-
-  List<Plato> get _platosFiltrados => _platos
-      .where((p) => ["2", "3", "4"].contains(p.idCategoria.toString()))
-      .where((p) => p.idCategoria.toString() == _filtro)
-      .toList();
-
-  List<Categoria> get _categoriasFiltro => _categorias
-      .where((c) => ["2", "3", "4"].contains(c.id.toString()))
-      .toList();
-
-  MenuDiaItem? get _corrientePublicada {
-    final items = _menuActual?.items ?? [];
-    for (final item in items) {
-      if (item.esCorriente) return item;
-    }
-    return null;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _mdCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (_) => DefaultTabController(
+        length: categorias.length,
+        child: StatefulBuilder(
+          builder: (contexto, setModal) => SizedBox(
+            height: MediaQuery.of(contexto).size.height * 0.75,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+                  child: Text(
+                    "Agregar a \"${seccion.nombre.trim().isEmpty ? "sección" : seccion.nombre.trim()}\"",
+                    style: GoogleFonts.spaceGrotesk(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                TabBar(
+                  isScrollable: true,
+                  indicatorColor: _mdNeon,
+                  labelColor: _mdNeon,
+                  unselectedLabelColor: _mdMuted,
+                  tabs: categorias.map((c) => Tab(text: c.nombre)).toList(),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: categorias.map((c) {
+                      final lista = _platos
+                          .where((p) => p.idCategoria == c.id)
+                          .toList();
+                      return ListView(
+                        padding: const EdgeInsets.all(12),
+                        children: lista.map((p) {
+                          final elegido = seccion.platos.contains(p.id);
+                          return CheckboxListTile(
+                            value: elegido,
+                            activeColor: _mdNeon,
+                            checkColor: Colors.black,
+                            title: Text(
+                              p.nombre,
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                            subtitle: Text(
+                              fmtPesos(p.precio),
+                              style: GoogleFonts.inter(
+                                color: _mdNeon,
+                                fontSize: 12,
+                              ),
+                            ),
+                            onChanged: (_) {
+                              _cambiar(() {
+                                elegido
+                                    ? seccion.platos.remove(p.id)
+                                    : seccion.platos.add(p.id);
+                              });
+                              setModal(() {});
+                            },
+                          );
+                        }).toList(),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(contexto).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _mdNeon,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                      ),
+                      child: const Text(
+                        "Listo",
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   // ==============================================================
@@ -297,7 +386,10 @@ class _MenuDiaScreenState extends State<MenuDiaScreen> {
               const SizedBox(height: 14),
               TextButton(
                 onPressed: _cargar,
-                child: const Text("Reintentar", style: TextStyle(color: _mdNeon)),
+                child: const Text(
+                  "Reintentar",
+                  style: TextStyle(color: _mdNeon),
+                ),
               ),
             ],
           ),
@@ -305,504 +397,259 @@ class _MenuDiaScreenState extends State<MenuDiaScreen> {
       );
     }
 
-    final totalItems =
-        (_hayCorriente ? 1 : 0) + _platosSeleccionados.length;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      children: [
+        Text(
+          "Arma las secciones del menú y agrega los platos de cada una.",
+          style: GoogleFonts.inter(color: _mdMuted, fontSize: 12.5),
+        ),
+        const SizedBox(height: 12),
 
-    return RefreshIndicator(
-      color: _mdNeon,
-      backgroundColor: Colors.black,
-      onRefresh: _cargar,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        children: [
-          Text(
-            "Arma el menú del día",
-            style: GoogleFonts.inter(color: _mdMuted, fontSize: 12.5),
-          ),
-          const SizedBox(height: 16),
-
-          // ---------------------------------------------------------
-          // CORRIENTE DEL DÍA
-          // ---------------------------------------------------------
-          _Seccion(
-            titulo: "Carta Corriente del Día",
-            subtitulo:
-                "Se publicará como un único plato — precio fijo ${_fmtPrecio(precioCorriente)}",
-            child: Column(
-              children: [
-                if (_corrientePublicada != null && !_hayCorriente)
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 14),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0x0AFFFFFF),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _mdNeonBorder),
-                    ),
-                    child: Text(
-                      "Corriente publicada hoy: ${_corrientePublicada!.descripcion}",
-                      style: GoogleFonts.inter(color: _mdMuted, fontSize: 11.5),
-                    ),
-                  ),
-                _SelectorMultiple(
-                  label: "Sopa",
-                  opciones: _opcionesSopa,
-                  seleccionadas: _sopas,
-                  onToggle: (v) => setState(
-                    () => _sopas.contains(v) ? _sopas.remove(v) : _sopas.add(v),
-                  ),
-                ),
-                _SelectorMultiple(
-                  label: "Proteína",
-                  opciones: _opcionesProteina,
-                  seleccionadas: _proteinas,
-                  onToggle: (v) => setState(
-                    () => _proteinas.contains(v)
-                        ? _proteinas.remove(v)
-                        : _proteinas.add(v),
-                  ),
-                ),
-                _SelectorMultiple(
-                  label: "Principio",
-                  opciones: _opcionesPrincipio,
-                  seleccionadas: _principios,
-                  onToggle: (v) => setState(
-                    () => _principios.contains(v)
-                        ? _principios.remove(v)
-                        : _principios.add(v),
-                  ),
-                ),
-                _SelectorMultiple(
-                  label: "Acompañante",
-                  opciones: _opcionesAcompanante,
-                  seleccionadas: _acompanantes,
-                  onToggle: (v) => setState(
-                    () => _acompanantes.contains(v)
-                        ? _acompanantes.remove(v)
-                        : _acompanantes.add(v),
-                  ),
-                ),
-              ],
+        if (_publicado)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: const Color(0x262EA043),
+              border: Border.all(color: _mdVerde),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              "● Publicado — visible para clientes y meseros",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(color: _mdVerde, fontSize: 12.5),
             ),
           ),
 
-          const SizedBox(height: 20),
+        for (int i = 0; i < _secciones.length; i++) _tarjetaSeccion(i),
 
-          // ---------------------------------------------------------
-          // PLATOS Y BEBIDAS
-          // ---------------------------------------------------------
-          _Seccion(
-            titulo: "Platos y Bebidas del Menú",
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  height: 34,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: _categoriasFiltro.map((cat) {
-                      final activo = _filtro == cat.id.toString();
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: GestureDetector(
-                          onTap: () =>
-                              setState(() => _filtro = cat.id.toString()),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 7,
-                            ),
-                            decoration: BoxDecoration(
-                              color: activo ? _mdNeon : _mdCard,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: activo ? _mdNeon : _mdNeonBorder,
-                              ),
-                            ),
-                            child: Text(
-                              cat.nombre,
-                              style: GoogleFonts.inter(
-                                color: activo ? Colors.black : Colors.white,
-                                fontSize: 12.5,
-                                fontWeight:
-                                    activo ? FontWeight.w700 : FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ..._platosFiltrados.map((plato) {
-                  final sel = _platosSeleccionados.contains(plato.id);
-                  return GestureDetector(
-                    onTap: () => setState(() {
-                      sel
-                          ? _platosSeleccionados.remove(plato.id)
-                          : _platosSeleccionados.add(plato.id);
-                    }),
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: sel ? _mdNeonSoft : _mdCard,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: sel ? _mdNeon : const Color(0xFF2A2A2A),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 18,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              color: sel ? _mdNeon : Colors.transparent,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: _mdNeon, width: 2),
-                            ),
-                            child: sel
-                                ? const Icon(
-                                    Icons.check,
-                                    size: 13,
-                                    color: Colors.black,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              plato.nombre,
-                              style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight:
-                                    sel ? FontWeight.w700 : FontWeight.w400,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            _fmtPrecio(plato.precio),
-                            style: GoogleFonts.inter(
-                              color: _mdNeon,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-                if (_platosFiltrados.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: Text(
-                      "No hay platos en esta categoría.",
-                      style: GoogleFonts.inter(color: _mdMuted, fontSize: 12),
-                    ),
-                  ),
-              ],
+        OutlinedButton.icon(
+          onPressed: () => _cambiar(() => _secciones.add(_nuevaSeccion(""))),
+          icon: const Icon(Icons.add, color: _mdNeon, size: 18),
+          label: Text(
+            "Agregar sección",
+            style: GoogleFonts.inter(
+              color: _mdNeon,
+              fontWeight: FontWeight.w700,
             ),
           ),
-
-          const SizedBox(height: 20),
-
-          // ---------------------------------------------------------
-          // RESUMEN + ACCIONES
-          // ---------------------------------------------------------
-          if (totalItems > 0)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              margin: const EdgeInsets.only(bottom: 14),
-              decoration: BoxDecoration(
-                color: _mdCard,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _mdNeonBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Resumen",
-                    style: GoogleFonts.inter(
-                      color: _mdNeon,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12.5,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  if (_hayCorriente)
-                    Text(
-                      "Corriente del Día (${_fmtPrecio(precioCorriente)})",
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  if (_platosSeleccionados.isNotEmpty)
-                    Text(
-                      "Platos/Bebidas: ${_platos.where((p) => _platosSeleccionados.contains(p.id)).map((p) => p.nombre).join(", ")}",
-                      style: GoogleFonts.inter(color: _mdMuted, fontSize: 11.5),
-                    ),
-                ],
-              ),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: _mdNeon),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
             ),
+          ),
+        ),
+        const SizedBox(height: 20),
 
-          if (_menuActual != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              margin: const EdgeInsets.only(bottom: 14),
-              decoration: BoxDecoration(
-                color: const Color(0x262EA043),
-                border: Border.all(color: const Color(0xFF2EA043)),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                "Menú activo — visible para clientes y meseros",
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  color: const Color(0xFF2EA043),
-                  fontSize: 12.5,
-                ),
-              ),
-            ),
-
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: totalItems == 0 ? null : _abrirConfirmacion,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _mdNeon,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    "↑ Publicar Menú del Día",
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              OutlinedButton(
-                onPressed: _limpiar,
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF555555)),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 13,
-                  ),
+        Row(
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _procesando ? null : _confirmarPublicar,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _mdNeon,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text(
-                  "Limpiar",
-                  style: TextStyle(color: _mdMuted),
+                child: Text(
+                  _procesando ? "Guardando..." : "↑ Publicar menú del día",
+                  style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _abrirConfirmacion() {
-    final bebidas = _platos
-        .where(
-          (p) =>
-              _platosSeleccionados.contains(p.id) &&
-              p.idCategoria.toString() == "4",
-        )
-        .length;
-    final platosNoBebida =
-        (_hayCorriente ? 1 : 0) +
-        _platos
-            .where(
-              (p) =>
-                  _platosSeleccionados.contains(p.id) &&
-                  p.idCategoria.toString() != "4",
-            )
-            .length;
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: _mdCard,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: _mdNeonBorder),
-        ),
-        title: Text(
-          "MENÚ DE HOY",
-          style: GoogleFonts.spaceGrotesk(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              "Este será el menú de hoy. ¿Está todo correcto?",
-              style: GoogleFonts.inter(color: _mdMuted, fontSize: 13),
             ),
-            const SizedBox(height: 12),
-            Text(
-              "$platosNoBebida platos · $bebidas bebidas",
-              style: GoogleFonts.inter(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
+            const SizedBox(width: 10),
+            OutlinedButton(
+              onPressed: _procesando ? null : _confirmarLimpiar,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF555555)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 13,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
+              child: const Text("Limpiar", style: TextStyle(color: _mdMuted)),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: _publicando
-                ? null
-                : () => Navigator.of(dialogContext).pop(),
-            child: const Text("No", style: TextStyle(color: _mdMuted)),
-          ),
-          ElevatedButton(
-            onPressed: _publicando ? null : _publicar,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _mdNeon,
-              foregroundColor: Colors.black,
-            ),
-            child: Text(_publicando ? "Publicando..." : "¡Sí, publicar!"),
-          ),
-        ],
-      ),
+      ],
     );
   }
-}
 
-// ================================================================
-// SECCIÓN CON TÍTULO
-// ================================================================
+  // ==============================================================
+  // TARJETA DE UNA SECCIÓN
+  // ==============================================================
 
-class _Seccion extends StatelessWidget {
-  final String titulo;
-  final String? subtitulo;
-  final Widget child;
+  Widget _tarjetaSeccion(int indice) {
+    final seccion = _secciones[indice];
 
-  const _Seccion({required this.titulo, this.subtitulo, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      key: ValueKey(seccion.clave),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: _mdCard,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _mdNeonBorder),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            titulo,
-            style: GoogleFonts.spaceGrotesk(
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  key: ValueKey("nombre-${seccion.clave}"),
+                  initialValue: seccion.nombre,
+                  maxLength: 60,
+                  style: GoogleFonts.spaceGrotesk(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  cursorColor: _mdNeon,
+                  decoration: const InputDecoration(
+                    hintText: "Nombre (ej. Comida rápida)",
+                    hintStyle: TextStyle(color: _mdMuted, fontSize: 13),
+                    counterText: "",
+                    isDense: true,
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFF333333)),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: _mdNeon),
+                    ),
+                  ),
+                  onChanged: (v) => _cambiar(() => seccion.nombre = v),
+                ),
+              ),
+              IconButton(
+                tooltip: "Subir",
+                icon: const Icon(Icons.arrow_upward, size: 18),
+                color: _mdMuted,
+                onPressed: indice == 0
+                    ? null
+                    : () => _cambiar(() {
+                        final s = _secciones.removeAt(indice);
+                        _secciones.insert(indice - 1, s);
+                      }),
+              ),
+              IconButton(
+                tooltip: "Bajar",
+                icon: const Icon(Icons.arrow_downward, size: 18),
+                color: _mdMuted,
+                onPressed: indice == _secciones.length - 1
+                    ? null
+                    : () => _cambiar(() {
+                        final s = _secciones.removeAt(indice);
+                        _secciones.insert(indice + 1, s);
+                      }),
+              ),
+              IconButton(
+                tooltip: "Quitar sección",
+                icon: const Icon(Icons.close, size: 18),
+                color: const Color(0xFFE74C3C),
+                onPressed: () => _cambiar(() => _secciones.removeAt(indice)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          if (seccion.platos.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Text(
+                "Sin platos todavía",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(color: _mdMuted, fontSize: 12),
+              ),
+            )
+          else
+            ReorderableListView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              onReorder: (anterior, nuevo) => _cambiar(() {
+                if (nuevo > anterior) nuevo -= 1;
+                final id = seccion.platos.removeAt(anterior);
+                seccion.platos.insert(nuevo, id);
+              }),
+              children: [
+                for (int j = 0; j < seccion.platos.length; j++)
+                  _filaPlato(seccion, j),
+              ],
+            ),
+
+          const SizedBox(height: 6),
+          TextButton.icon(
+            onPressed: () => _elegirPlatos(seccion),
+            icon: const Icon(
+              Icons.add_circle_outline,
               color: _mdNeon,
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
+              size: 18,
+            ),
+            label: Text(
+              "Agregar platos",
+              style: GoogleFonts.inter(
+                color: _mdNeon,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-          if (subtitulo != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              subtitulo!,
-              style: GoogleFonts.inter(color: _mdMuted, fontSize: 11.5),
-            ),
-          ],
-          const SizedBox(height: 14),
-          child,
         ],
       ),
     );
   }
-}
 
-// ================================================================
-// SELECTOR MÚLTIPLE (chips) — reemplaza el dropdown+etiquetas de la
-// web por algo más cómodo de tocar en celular: cada opción es un chip
-// que se prende/apaga directamente.
-// ================================================================
+  Widget _filaPlato(SeccionEditable seccion, int j) {
+    final id = seccion.platos[j];
+    final plato = _plato(id);
 
-class _SelectorMultiple extends StatelessWidget {
-  final String label;
-  final List<String> opciones;
-  final Set<String> seleccionadas;
-  final void Function(String) onToggle;
-
-  const _SelectorMultiple({
-    required this.label,
-    required this.opciones,
-    required this.seleccionadas,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      key: ValueKey("plato-${seccion.clave}-$id"),
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: _mdNeonSoft.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
         children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              color: _mdNeon,
-              fontWeight: FontWeight.w700,
-              fontSize: 12.5,
+          ReorderableDragStartListener(
+            index: j,
+            child: const Padding(
+              padding: EdgeInsets.all(6),
+              child: Icon(Icons.drag_handle, color: _mdMuted, size: 20),
             ),
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: opciones.map((op) {
-              final activo = seleccionadas.contains(op);
-              return GestureDetector(
-                onTap: () => onToggle(op),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: activo ? _mdNeonSoft : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: activo ? _mdNeon : const Color(0xFF444444),
-                    ),
-                  ),
-                  child: Text(
-                    op,
-                    style: GoogleFonts.inter(
-                      color: activo ? Colors.white : _mdMuted,
-                      fontSize: 11.5,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
+          Expanded(
+            child: Text(
+              plato?.nombre ?? "Plato no disponible",
+              style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            plato != null ? fmtPesos(plato.precio) : "",
+            style: GoogleFonts.inter(
+              color: _mdNeon,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 16),
+            color: _mdMuted,
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _cambiar(() => seccion.platos.removeAt(j)),
           ),
         ],
       ),

@@ -1,438 +1,307 @@
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useMemo, useState } from "react"
 import axios from "axios"
 import '../../../Hojas_de_Estilo/Administrador.css';
 import '../../App.css';
 
 const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030";
 
-const NEON = "#ff1744";
-const NEON_DIM = "#cc0f33";
-const NEON_SOFT = "rgba(255, 23, 68, 0.15)";
-const NEON_BORDER = "rgba(255, 23, 68, 0.30)";
-const NEON_GLOW = "rgba(255, 23, 68, 0.55)";
+const ID_BEBIDAS = 4
+const IMG_CATEGORIA = { "1": "/CartaCorriente.png", "2": "/CartaComidaRapida.png", "3": "/CartaEspecial.png", "4": "/CartaBebidas.png" }
 
-function CustomDropdown({ placeholder, opciones, value, onChange }) {
-    const [abierto, setAbierto] = useState(false)
-    const ref = useRef(null)
+const fmt = (n) => `$${Number(n || 0).toLocaleString("es-CO")}`
+const urlImagen = (p) => (p.ImagenUrl ? `${API}${p.ImagenUrl}` : IMG_CATEGORIA[String(p.id_Categoria)] ?? "/CartaCorriente.png")
 
-    useEffect(() => {
-        const handler = (e) => {
-            if (ref.current && !ref.current.contains(e.target)) setAbierto(false)
-        }
-        document.addEventListener("mousedown", handler)
-        return () => document.removeEventListener("mousedown", handler)
-    }, [])
+// Cada sección necesita una clave estable para React mientras se edita
+let contadorClaves = 0
+const nuevaSeccion = (nombre = "", platos = []) => ({ key: `s${++contadorClaves}`, nombre, platos })
 
-    return (
-        <div ref={ref} style={{ position: "relative", flex: 1 }}>
-            <div
-                onClick={() => setAbierto(v => !v)}
-                style={{
-                    padding: "10px 14px", background: "#0d0d0d",
-                    border: "1px solid #444", borderRadius: "6px",
-                    color: value ? "#fff" : "#777", cursor: "pointer",
-                    display: "flex", justifyContent: "space-between",
-                    alignItems: "center", userSelect: "none", fontSize: "0.9rem"
-                }}
-            >
-                <span>{value || placeholder}</span>
-                <span style={{ color: NEON, fontSize: "0.75rem", marginLeft: "8px" }}>
-                    {abierto ? "▲" : "▼"}
-                </span>
-            </div>
-
-            {abierto && (
-                <div style={{
-                    position: "absolute", top: "calc(100% + 4px)",
-                    left: 0, right: 0, background: "#0d0d0d",
-                    border: "1px solid #444", borderRadius: "6px",
-                    zIndex: 999, maxHeight: "200px", overflowY: "auto",
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.6)"
-                }}>
-                    <div
-                        onClick={() => { onChange(""); setAbierto(false) }}
-                        style={{ padding: "9px 14px", color: "#666", fontSize: "0.85rem", cursor: "pointer", borderBottom: "1px solid #1f1f1f" }}
-                    >
-                        {placeholder}
-                    </div>
-                    {opciones.map((op, i) => (
-                        <div
-                            key={i}
-                            onClick={() => { onChange(op); setAbierto(false) }}
-                            style={{
-                                padding: "9px 14px",
-                                color: op === value ? NEON : "#ddd",
-                                background: op === value ? NEON_SOFT : "transparent",
-                                fontSize: "0.88rem", cursor: "pointer",
-                                borderBottom: i < opciones.length - 1 ? "1px solid #1a1a1a" : "none",
-                                transition: "background 0.15s"
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,23,68,0.08)"}
-                            onMouseLeave={e => e.currentTarget.style.background = op === value ? NEON_SOFT : "transparent"}
-                        >
-                            {op}
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    )
-}
-
-function FilaSeleccion({ label, opciones, lista, setLista, selVal, setSelVal }) {
-    const agregar = () => {
-        if (selVal && !lista.includes(selVal)) setLista([...lista, selVal])
-        setSelVal("")
+// Mismas reglas que valida el backend (Menudiacontroller.js)
+const validarMenu = (secciones) => {
+    if (secciones.length === 0) return "Agrega al menos una sección con el botón +"
+    for (const s of secciones) {
+        const nombre = s.nombre.trim()
+        if (!nombre) return "Todas las secciones necesitan un nombre"
+        if (s.platos.length === 0) return `La sección "${nombre}" está vacía: arrastra platos o quítala`
     }
+    return null
+}
+
+// Tarjeta de las columnas de los lados: se arrastra hacia una sección
+function TarjetaPlato({ plato }) {
+    const [arrastrando, setArrastrando] = useState(false)
     return (
-        <div style={{ marginBottom: "18px" }}>
-            <label style={{ color: NEON, fontWeight: "700", display: "block", marginBottom: "8px", fontSize: "0.88rem" }}>
-                {label}
-            </label>
-            {lista.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "8px" }}>
-                    {lista.map((item, i) => (
-                        <span key={i} style={{
-                            padding: "3px 10px", border: `1px solid ${NEON}`,
-                            borderRadius: "20px", color: "#fff", fontSize: "0.8rem",
-                            display: "flex", alignItems: "center", gap: "6px",
-                            background: NEON_SOFT
-                        }}>
-                            {item}
-                            <button onClick={() => setLista(lista.filter(v => v !== item))}
-                                style={{ background: "none", border: "none", color: NEON, cursor: "pointer", fontSize: "0.9rem", lineHeight: 1, padding: 0 }}
-                            >✕</button>
-                        </span>
-                    ))}
-                </div>
-            )}
-            <div style={{ display: "flex", gap: "8px", alignItems: "stretch" }}>
-                <CustomDropdown placeholder={`— ${label} —`} opciones={opciones} value={selVal} onChange={setSelVal} />
-                <button onClick={agregar} style={{
-                    padding: "0 16px", background: NEON, color: "#000",
-                    border: "none", borderRadius: "6px", cursor: "pointer",
-                    fontWeight: "700", fontSize: "1.1rem", flexShrink: 0,
-                    boxShadow: `0 0 10px ${NEON_GLOW}`,
-                    transition: "background 0.2s, box-shadow 0.2s"
-                }}
-                    onMouseEnter={e => { e.currentTarget.style.background = NEON_DIM; e.currentTarget.style.boxShadow = `0 0 16px ${NEON_GLOW}`; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = NEON; e.currentTarget.style.boxShadow = `0 0 10px ${NEON_GLOW}`; }}
-                >+</button>
+        <div
+            className={`mb-tarjeta ${arrastrando ? "mb-arrastrando" : ""}`}
+            draggable
+            onDragStart={e => {
+                e.dataTransfer.setData("application/json", JSON.stringify({ origen: "paleta", id: plato.id_Platos }))
+                e.dataTransfer.effectAllowed = "copy"
+                setArrastrando(true)
+            }}
+            onDragEnd={() => setArrastrando(false)}
+        >
+            <img src={urlImagen(plato)} alt="" className="mb-tarjeta-img" />
+            <div className="mb-tarjeta-info">
+                <p className="mb-tarjeta-nombre">{plato.NombrePlato}</p>
+                <p className="mb-tarjeta-precio">{fmt(plato.Precio)}</p>
             </div>
         </div>
     )
 }
-
-const PRECIO_CORRIENTE = 15000
 
 function Menus() {
     const [platos, setPlatos] = useState([])
     const [categorias, setCategorias] = useState([])
+    const [secciones, setSecciones] = useState([])
+    const [menuActivo, setMenuActivo] = useState(false)
     const [cargando, setCargando] = useState(true)
     const [error, setError] = useState(null)
-    const [menuSubido, setMenuSubido] = useState(false)
-    const [modalConfirmar, setModalConfirmar] = useState(false)
-
-    const [sopas, setSopas] = useState([])
-    const [proteinas, setProteinas] = useState([])
-    const [principios, setPrincipios] = useState([])
-    const [acompanantes, setAcompanantes] = useState([])
-    const [selSopa, setSelSopa] = useState("")
-    const [selProteina, setSelProteina] = useState("")
-    const [selPrincipio, setSelPrincipio] = useState("")
-    const [selAcompanante, setSelAcompanante] = useState("")
-
-    const [platosMenu, setPlatosMenu] = useState([])
-    const [filtro, setFiltro] = useState("2")
+    const [aviso, setAviso] = useState(null)          // { tipo: "ok" | "error", texto }
+    const [sobreSeccion, setSobreSeccion] = useState(null)
+    const [modal, setModal] = useState(null)          // "publicar" | "limpiar" | null
+    const [procesando, setProcesando] = useState(false)
 
     useEffect(() => {
-        const cargarDatos = async () => {
+        const cargar = async () => {
             try {
-                const [resPlatos, resCategorias] = await Promise.all([
+                const [resPlatos, resCategorias, resMenu] = await Promise.all([
                     axios.get(`${API}/api/platos/listar`),
-                    axios.get(`${API}/api/categorias/listar`)
+                    axios.get(`${API}/api/categorias/listar`),
+                    axios.get(`${API}/api/menu-dia/hoy`)
                 ])
-                setPlatos(resPlatos.data)
-                setCategorias(resCategorias.data)
+                setPlatos(Array.isArray(resPlatos.data) ? resPlatos.data : [])
+                setCategorias(Array.isArray(resCategorias.data) ? resCategorias.data : [])
+                // Si ya hay menú publicado hoy, se carga completo para editarlo
+                if (resMenu.data?.secciones?.length) {
+                    setSecciones(resMenu.data.secciones.map(s => nuevaSeccion(s.Nombre, s.platos.map(p => p.id_Platos))))
+                    setMenuActivo(true)
+                } else {
+                    setSecciones([nuevaSeccion("Corriente del día")])
+                }
             } catch (err) {
                 setError("No se pudo conectar con el servidor")
             } finally {
                 setCargando(false)
             }
         }
-        cargarDatos()
-
-        // El menú publicado ahora vive en el backend, no en localStorage
-        // (localStorage es por navegador/dispositivo y no lo ve ni el
-        // mesero en su celular ni la app Flutter).
-        const cargarMenuHoy = async () => {
-            try {
-                const res = await axios.get(`${API}/api/menu-dia/hoy`)
-                const menu = res.data
-                if (menu && Array.isArray(menu.items)) {
-                    setPlatosMenu(menu.items.filter(p => p.id_Platos !== 9999))
-                    setMenuSubido(true)
-                }
-            } catch (err) {
-                // Si falla, simplemente arrancamos con el menú vacío.
-            }
-        }
-        cargarMenuHoy()
+        cargar()
     }, [])
 
-    const togglePlato = (plato) => {
-        const yaEsta = platosMenu.some(p => p.id_Platos === plato.id_Platos)
-        if (yaEsta) {
-            setPlatosMenu(prev => prev.filter(p => p.id_Platos !== plato.id_Platos))
-        } else {
-            setPlatosMenu(prev => [...prev, plato])
-        }
-        setMenuSubido(false)
+    const platosPorId = useMemo(() => Object.fromEntries(platos.map(p => [p.id_Platos, p])), [platos])
+
+    // Cartas = categorías con platos, menos Bebidas (que tiene su propia columna)
+    const cartas = categorias
+        .filter(c => Number(c.id_Categoria) !== ID_BEBIDAS)
+        .map(c => ({ ...c, platos: platos.filter(p => Number(p.id_Categoria) === Number(c.id_Categoria)) }))
+        .filter(c => c.platos.length > 0)
+    const bebidas = platos.filter(p => Number(p.id_Categoria) === ID_BEBIDAS)
+
+    // Cualquier cambio deja el menú "sin publicar" hasta que se vuelva a publicar
+    const cambiarSecciones = (fn) => {
+        setSecciones(fn)
+        setMenuActivo(false)
+        setAviso(null)
     }
 
-    const construirCorrienteDelDia = () => {
-        const hayComponentes = sopas.length || proteinas.length || principios.length || acompanantes.length
-        if (!hayComponentes) return null
+    const moverSeccion = (indice, direccion) => cambiarSecciones(prev => {
+        const destino = indice + direccion
+        if (destino < 0 || destino >= prev.length) return prev
+        const copia = [...prev]
+        ;[copia[indice], copia[destino]] = [copia[destino], copia[indice]]
+        return copia
+    })
 
-        const partes = []
-        if (sopas.length) partes.push(`Sopa: ${sopas.join(" o ")}`)
-        if (proteinas.length) partes.push(`Proteína: ${proteinas.join(" o ")}`)
-        if (principios.length) partes.push(`Principio: ${principios.join(" o ")}`)
-        if (acompanantes.length) partes.push(`Acompañante: ${acompanantes.join(" o ")}`)
-        const descripcion = partes.join(" • ")
+    // ── Soltar un plato sobre una sección (o sobre otro plato, para reordenar) ──
+    const soltar = (e, keyDestino, idObjetivo = null) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setSobreSeccion(null)
+        let datos
+        try { datos = JSON.parse(e.dataTransfer.getData("application/json")) } catch { return }
+        if (datos.id === idObjetivo && datos.key === keyDestino) return   // sobre sí mismo
 
-        return {
-            id_Platos: 9999,
-            NombrePlato: "Corriente del Día",
-            Descripcion: descripcion,
-            Precio: PRECIO_CORRIENTE,
-            id_Categoria: 1
-        }
+        cambiarSecciones(prev => prev.map(s => {
+            // Si viene de otra sección, se saca de allá
+            let lista = datos.origen === "seccion" && s.key === datos.key ? s.platos.filter(id => id !== datos.id) : s.platos
+            if (s.key !== keyDestino) return { ...s, platos: lista }
+            lista = lista.filter(id => id !== datos.id)                     // sin repetidos
+            const posicion = idObjetivo === null ? -1 : lista.indexOf(idObjetivo)
+            lista.splice(posicion === -1 ? lista.length : posicion, 0, datos.id)
+            return { ...s, platos: lista }
+        }))
     }
 
-    const confirmarSubida = async () => {
-        const corrienteDelDia = construirCorrienteDelDia()
+    const quitarPlato = (key, id) =>
+        cambiarSecciones(prev => prev.map(s => (s.key === key ? { ...s, platos: s.platos.filter(x => x !== id) } : s)))
 
-        // Los platos reales se identifican por su id_Platos; la Corriente
-        // del Día reutiliza el sentinel 9999 y guarda su descripción armada
-        // como texto (el backend la reconstruye al leer el menú).
-        const items = [
-            ...(corrienteDelDia ? [{
-                id_Platos: 9999,
-                categoria: "Corriente",
-                nombreItem: corrienteDelDia.Descripcion
-            }] : []),
-            ...platosMenu.map(p => ({
-                id_Platos: p.id_Platos,
-                categoria: String(p.id_Categoria),
-                nombreItem: p.NombrePlato
-            }))
-        ]
+    // ── Publicar / limpiar ──
+    const abrirPublicar = () => {
+        const error = validarMenu(secciones)
+        if (error) { setAviso({ tipo: "error", texto: error }); return }
+        setModal("publicar")
+    }
 
+    const publicar = async () => {
+        setProcesando(true)
         try {
             await axios.post(`${API}/api/menu-dia/publicar`, {
-                precio: PRECIO_CORRIENTE,
-                items
+                secciones: secciones.map(s => ({ nombre: s.nombre.trim(), platos: s.platos }))
             })
-            setModalConfirmar(false)
-            setMenuSubido(true)
+            setMenuActivo(true)
+            setAviso({ tipo: "ok", texto: "Menú publicado: ya lo ven clientes y meseros" })
         } catch (err) {
-            setError("No se pudo publicar el menú del día")
-            setModalConfirmar(false)
+            setAviso({ tipo: "error", texto: err.response?.data?.message || "No se pudo publicar el menú" })
+        } finally {
+            setProcesando(false)
+            setModal(null)
         }
     }
 
-    const limpiarTodo = async () => {
-        setSopas([]);        setSelSopa("")
-        setProteinas([]);    setSelProteina("")
-        setPrincipios([]);   setSelPrincipio("")
-        setAcompanantes([]); setSelAcompanante("")
-        setPlatosMenu([])
+    const limpiar = async () => {
+        setProcesando(true)
         try {
             await axios.put(`${API}/api/menu-dia/desactivar`)
-        } catch (err) {}
-        setMenuSubido(false)
+            setSecciones([nuevaSeccion("Corriente del día")])
+            setMenuActivo(false)
+            setAviso({ tipo: "ok", texto: "Menú de hoy retirado" })
+        } catch (err) {
+            setAviso({ tipo: "error", texto: "No se pudo retirar el menú" })
+        } finally {
+            setProcesando(false)
+            setModal(null)
+        }
     }
 
-    const categoriasFiltro = categorias.filter(c => ["2","3","4"].includes(String(c.id_Categoria)))
-    const platosFiltrados  = platos.filter(p =>
-        ["2","3","4"].includes(String(p.id_Categoria)) &&
-        String(p.id_Categoria) === String(filtro)
-    )
-
-    const formatPrecio = (precio) => `$${Number(precio).toLocaleString("es-CO")}`
-    const hayCorriente = sopas.length || proteinas.length || principios.length || acompanantes.length
-    const totalItems   = (hayCorriente ? 1 : 0) + platosMenu.length
-
-    if (cargando) return <p className="emp-estado-msg">Cargando platos...</p>
+    if (cargando) return <p className="emp-estado-msg">Cargando menú...</p>
     if (error)    return <p className="emp-estado-msg emp-error">{error}</p>
 
     return (
         <div className="emp-contenedor">
             <div className="emp-header">
                 <h1 className="emp-titulo-pagina">MENÚ HOY</h1>
-                <p className="emp-subtitulo">Arma el menú del día</p>
+                <p className="emp-subtitulo">Arrastra los platos de los lados a las secciones del menú</p>
             </div>
 
-            <div style={{
-                maxWidth: "680px", margin: "0 auto 32px auto",
-                padding: "28px", border: `1px solid ${NEON_BORDER}`,
-                borderRadius: "14px", background: "#111",
-                boxShadow: `0 0 20px rgba(255,23,68,0.08)`
-            }}>
-                <h4 style={{ color: NEON, marginBottom: "6px", fontSize: "1.05rem",
-                    textShadow: `0 0 8px ${NEON_GLOW}` }}>
-                    Carta Corriente del Día
-                </h4>
-                <p style={{ color: "#888", fontSize: "0.8rem", marginBottom: "20px" }}>
-                    Se publicará como un único plato "Corriente del Día" — precio fijo {formatPrecio(PRECIO_CORRIENTE)}
-                </p>
-                <FilaSeleccion label="Sopa"
-                    opciones={["Sopa de Ajiaco","Sopa de Pasta","Sopa de Arroz","Sopa de Sancocho","Crema de Ahuyama","Crema de Champiñones"]}
-                    lista={sopas} setLista={setSopas} selVal={selSopa} setSelVal={setSelSopa}
-                />
-                <FilaSeleccion label="Proteína"
-                    opciones={["Res","Cerdo","Pechuga","Chuleta","Pollo Sudado","Carne Molida"]}
-                    lista={proteinas} setLista={setProteinas} selVal={selProteina} setSelVal={setSelProteina}
-                />
-                <FilaSeleccion label="Principio"
-                    opciones={["Frijol","Arveja","Lentejas","Garbanzos","Espaguetis","Macarrones","Poteca de Ahuyama","Puré de Papa"]}
-                    lista={principios} setLista={setPrincipios} selVal={selPrincipio} setSelVal={setSelPrincipio}
-                />
-                <FilaSeleccion label="Acompañante"
-                    opciones={["Papa Salada","Tajadas Fritas","Plátano Maduro","Yuca Blanca"]}
-                    lista={acompanantes} setLista={setAcompanantes} selVal={selAcompanante} setSelVal={setSelAcompanante}
-                />
-            </div>
-
-            {/* ── SECCIÓN 2: Platos y bebidas ── */}
-            <div style={{ maxWidth: "680px", margin: "0 auto 32px auto" }}>
-                <h4 style={{ color: NEON, marginBottom: "16px", fontSize: "1.05rem",
-                    textShadow: `0 0 8px ${NEON_GLOW}` }}>
-                    Platos y Bebidas del Menú
-                </h4>
-
-                <div className="menus-filtros" style={{ marginBottom: "16px" }}>
-                    {categoriasFiltro.map(cat => (
-                        <button key={cat.id_Categoria}
-                            className={`platos-filtro-btn ${String(filtro) === String(cat.id_Categoria) ? "activo" : ""}`}
-                            onClick={() => setFiltro(cat.id_Categoria)}
-                        >
-                            {cat.NombreCategoria}
-                        </button>
+            <div className="mb-layout">
+                {/* ── Izquierda: las cartas ── */}
+                <div className="mb-columna">
+                    <h3 className="mb-columna-titulo">Cartas</h3>
+                    {cartas.map(c => (
+                        <div key={c.id_Categoria} className="mb-grupo">
+                            <p className="mb-grupo-titulo">{c.NombreCategoria}</p>
+                            {c.platos.map(p => <TarjetaPlato key={p.id_Platos} plato={p} />)}
+                        </div>
                     ))}
                 </div>
 
-                <div className="menus-platos-lista">
-                    {platosFiltrados.map(plato => {
-                        const sel = platosMenu.some(p => p.id_Platos === plato.id_Platos)
-                        return (
-                            <div key={plato.id_Platos} onClick={() => togglePlato(plato)}
-                                style={{
-                                    display: "flex", alignItems: "center", gap: "12px",
-                                    padding: "10px 14px", marginBottom: "8px",
-                                    borderRadius: "8px", cursor: "pointer",
-                                    border: sel ? `1px solid ${NEON}` : "1px solid #2a2a2a",
-                                    background: sel ? NEON_SOFT : "#111",
-                                    transition: "all 0.15s",
-                                    boxShadow: sel ? `0 0 10px rgba(255,23,68,0.15)` : "none"
-                                }}
-                            >
-                                <span style={{
-                                    width: "20px", height: "20px", borderRadius: "4px",
-                                    border: `2px solid ${NEON}`,
-                                    background: sel ? NEON : "transparent",
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                    flexShrink: 0, fontSize: "0.75rem", color: "#fff"
-                                }}>
-                                    {sel ? "✓" : ""}
-                                </span>
-                                <div style={{ flex: 1 }}>
-                                    <p style={{ color: "#eee", fontWeight: sel ? "700" : "400", margin: 0, fontSize: "0.9rem" }}>
-                                        {plato.NombrePlato}
-                                    </p>
-                                    <p style={{ color: "#777", margin: 0, fontSize: "0.78rem" }}>{plato.Descripcion}</p>
+                {/* ── Centro: el menú del día ── */}
+                <div className="mb-centro">
+                    <div className="mb-centro-header">
+                        <h3 className="mb-columna-titulo">Menú del día</h3>
+                        {menuActivo && <span className="mb-estado-activo">● Publicado</span>}
+                    </div>
+
+                    <div className="mb-agregar">
+                        <button onClick={() => cambiarSecciones(prev => [...prev, nuevaSeccion()])}>+ Agregar sección</button>
+                    </div>
+
+                    {secciones.length === 0 && <div className="mb-vacio">Agrega una sección para empezar</div>}
+
+                    {secciones.map((s, indice) => (
+                        <div
+                            key={s.key}
+                            className={`mb-seccion ${sobreSeccion === s.key ? "mb-seccion-sobre" : ""}`}
+                            onDragOver={e => { e.preventDefault(); setSobreSeccion(s.key) }}
+                            onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setSobreSeccion(null) }}
+                            onDrop={e => soltar(e, s.key)}
+                        >
+                            <div className="mb-seccion-header">
+                                <input
+                                    className="mb-input-nombre"
+                                    value={s.nombre}
+                                    maxLength={60}
+                                    placeholder="Nombre de la sección (ej. Comida rápida)"
+                                    onChange={e => cambiarSecciones(prev => prev.map(x => (x.key === s.key ? { ...x, nombre: e.target.value } : x)))}
+                                />
+                                <div className="mb-seccion-acciones">
+                                    <button title="Subir" disabled={indice === 0} onClick={() => moverSeccion(indice, -1)}>▲</button>
+                                    <button title="Bajar" disabled={indice === secciones.length - 1} onClick={() => moverSeccion(indice, 1)}>▼</button>
+                                    <button title="Quitar sección" className="mb-btn-quitar"
+                                        onClick={() => cambiarSecciones(prev => prev.filter(x => x.key !== s.key))}>✕</button>
                                 </div>
-                                <span style={{ color: NEON, fontWeight: "700", fontSize: "0.88rem", flexShrink: 0 }}>
-                                    {formatPrecio(plato.Precio)}
-                                </span>
                             </div>
-                        )
-                    })}
+
+                            {s.platos.length === 0 ? (
+                                <p className="mb-seccion-vacia">Arrastra aquí platos y bebidas</p>
+                            ) : (
+                                s.platos.map(id => {
+                                    const plato = platosPorId[id]
+                                    return (
+                                        <div
+                                            key={id}
+                                            className="mb-item"
+                                            draggable
+                                            onDragStart={e => {
+                                                e.dataTransfer.setData("application/json", JSON.stringify({ origen: "seccion", key: s.key, id }))
+                                                e.dataTransfer.effectAllowed = "move"
+                                            }}
+                                            onDragOver={e => e.preventDefault()}
+                                            onDrop={e => soltar(e, s.key, id)}
+                                        >
+                                            <span className="mb-item-asa" title="Arrastra para reordenar">⋮⋮</span>
+                                            <span className="mb-item-nombre">{plato?.NombrePlato ?? "Plato no disponible"}</span>
+                                            <span className="mb-item-precio">{plato ? fmt(plato.Precio) : ""}</span>
+                                            <button className="mb-btn-quitar" onClick={() => quitarPlato(s.key, id)}>✕</button>
+                                        </div>
+                                    )
+                                })
+                            )}
+                        </div>
+                    ))}
+
+                    {aviso && <p className={`mb-aviso mb-aviso-${aviso.tipo}`}>{aviso.texto}</p>}
+
+                    <div className="mb-botones">
+                        <button className="menus-btn-subir" onClick={abrirPublicar}>↑ Publicar menú del día</button>
+                        <button className="mb-btn-limpiar" onClick={() => setModal("limpiar")}>Limpiar</button>
+                    </div>
+                </div>
+
+                {/* ── Derecha: bebidas ── */}
+                <div className="mb-columna">
+                    <h3 className="mb-columna-titulo">Bebidas</h3>
+                    {bebidas.map(p => <TarjetaPlato key={p.id_Platos} plato={p} />)}
                 </div>
             </div>
 
-            <div style={{ maxWidth: "680px", margin: "0 auto" }}>
-                {totalItems > 0 && (
-                    <div style={{
-                        padding: "14px", background: "#0d0d0d", borderRadius: "8px",
-                        fontSize: "0.83rem", color: "#ccc", marginBottom: "16px",
-                        border: `1px solid ${NEON_BORDER}`
-                    }}>
-                        <p style={{ color: NEON, fontWeight: "700", marginBottom: "8px",
-                            textShadow: `0 0 6px ${NEON_GLOW}` }}>Resumen</p>
-                        {hayCorriente && (
-                            <>
-                                <p style={{ marginBottom: "4px", color: "#fff" }}>
-                                    <strong>Corriente del Día</strong> 
-                                    ({formatPrecio(PRECIO_CORRIENTE)}):
-                                </p>
-                                {sopas.length > 0 && <p style={{ marginBottom: "2px", paddingLeft: "16px" }}>· Sopas: {sopas.join(", ")}</p>}
-                                {proteinas.length > 0 && <p style={{ marginBottom: "2px", paddingLeft: "16px" }}>· Proteínas: {proteinas.join(", ")}</p>}
-                                {principios.length > 0 && <p style={{ marginBottom: "2px", paddingLeft: "16px" }}>· Principios: {principios.join(", ")}</p>}
-                                {acompanantes.length > 0 && <p style={{ marginBottom: "8px", paddingLeft: "16px" }}>· Acompañantes: {acompanantes.join(", ")}</p>}
-                            </>
-                        )}
-                        {platosMenu.length > 0 && (
-                            <p style={{ marginBottom: "4px" }}>
-                                <strong>Platos/Bebidas:</strong> 
-                                {platosMenu.map(p => p.NombrePlato).join(", ")}</p>
-                        )}
-                    </div>
-                )}
-
-                {menuSubido && (
-                    <div style={{
-                        padding: "8px 14px", background: "rgba(46,160,67,0.15)",
-                        border: "1px solid #2ea043", borderRadius: "6px",
-                        color: "#2ea043", fontSize: "0.85rem", marginBottom: "14px", textAlign: "center"
-                    }}>
-                        Menú activo — visible para clientes y meseros
-                    </div>
-                )}
-
-                <div style={{ display: "flex", gap: "10px" }}>
-                    <button className="menus-btn-subir" onClick={() => setModalConfirmar(true)} style={{ flex: 1 }}>
-                        ↑ Publicar Menú del Día
-                    </button>
-                    <button onClick={limpiarTodo} style={{
-                        padding: "10px 16px", background: "transparent",
-                        border: "1px solid #555", color: "#aaa",
-                        borderRadius: "6px", cursor: "pointer", fontSize: "0.85rem"
-                    }}>
-                        Limpiar
-                    </button>
-                </div>
-            </div>
-
-            {modalConfirmar && (
-                <div className="emp-modal-overlay" onClick={() => setModalConfirmar(false)}>
-                    <div className="emp-modal menus-modal-confirmar" onClick={e => e.stopPropagation()}>
-                        <div className="emp-modal-header">
-                            <h2 className="emp-modal-titulo">MENÚ DE HOY</h2>
+            {modal && (
+                <div className="emp-modal-overlay" onClick={() => !procesando && setModal(null)}>
+                    <div className="emp-modal emp-modal-confirmar" onClick={e => e.stopPropagation()}>
+                        <div className={`emp-modal-header ${modal === "limpiar" ? "emp-modal-header-eliminar" : ""}`}>
+                            <h2 className="emp-modal-titulo">{modal === "publicar" ? "PUBLICAR MENÚ" : "RETIRAR MENÚ"}</h2>
                         </div>
                         <div className="emp-modal-body">
-                            <p className="menus-confirmar-texto">
-                                Este será el menú de hoy.<br />¿Está todo correcto?
-                            </p>
-                            <div className="menus-confirmar-resumen">
-                                <span>{(hayCorriente ? 1 : 0) + platosMenu.filter(p => String(p.id_Categoria) !== "4").length} platos</span>
-                                <span>{platosMenu.filter(p => String(p.id_Categoria) === "4").length} bebidas</span>
-                            </div>
+                            {modal === "publicar" ? (
+                                <ul className="mb-resumen">
+                                    {secciones.map(s => (
+                                        <li key={s.key}><strong>{s.nombre.trim()}</strong> · {s.platos.length} platos</li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="emp-confirmar-texto">El menú de hoy dejará de verse para clientes y meseros. ¿Seguro?</p>
+                            )}
                         </div>
                         <div className="emp-modal-footer">
-                            <button className="emp-btn-cancelar" onClick={() => setModalConfirmar(false)}>No</button>
-                            <button className="emp-btn-guardar" onClick={confirmarSubida}>¡Sí, publicar!</button>
+                            <button className="emp-btn-cancelar" disabled={procesando} onClick={() => setModal(null)}>Cancelar</button>
+                            {modal === "publicar" ? (
+                                <button className="emp-btn-guardar" disabled={procesando} onClick={publicar}>
+                                    {procesando ? "Publicando..." : "¡Sí, publicar!"}
+                                </button>
+                            ) : (
+                                <button className="emp-btn-eliminar-modal" disabled={procesando} onClick={limpiar}>
+                                    {procesando ? "Retirando..." : "Sí, retirar"}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

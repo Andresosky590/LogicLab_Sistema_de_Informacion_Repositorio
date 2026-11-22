@@ -22,16 +22,15 @@ const urlImagenPlato = (plato) => {
 
 function MenuDia() {
   const navigate = useNavigate()
-  const [menuDelDia, setMenuDelDia] = useState([]);
+  // Menú de hoy por secciones, en el orden que armó el admin
+  const [secciones, setSecciones] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
     const cargarMenu = async () => {
       try {
         const res = await axios.get(`${API}/api/menu-dia/hoy`);
-        if (res.data && Array.isArray(res.data.items)) {
-          setMenuDelDia(res.data.items);
-        }
+        setSecciones(Array.isArray(res.data?.secciones) ? res.data.secciones : []);
       } catch (error) {
         console.error("Error cargando el menú del día:", error);
       } finally {
@@ -41,8 +40,7 @@ function MenuDia() {
     cargarMenu();
   }, []);
 
-  const menuPlatos = menuDelDia.filter(p => String(p.id_Categoria) !== "4");
-  const menuBebidas = menuDelDia.filter(p => String(p.id_Categoria) === "4");
+  const totalPlatos = secciones.reduce((n, s) => n + s.platos.length, 0);
 
   const formatPrecio = (precio) => `$${Number(precio).toLocaleString("es-CO")}`;
 
@@ -61,7 +59,7 @@ function MenuDia() {
       <h2 className="menu-title">MENÚ DEL DÍA</h2>
       <span className="menu-fecha-badge">{hoy}</span>
 
-      {menuDelDia.length === 0 ? (
+      {secciones.length === 0 ? (
         <div className="menu-vacio">
           <p className="menu-vacio-titulo">No hay menú disponible hoy</p>
           <p className="menu-vacio-subtitulo">El administrador aún no ha armado el menú del día.</p>
@@ -69,12 +67,12 @@ function MenuDia() {
       ) : (
         <div className="menu-dia-contenido">
 
-          {menuPlatos.length > 0 && (
-            <div className="menu-seccion">
-              <h3 className="menu-seccion-titulo">Platos</h3>
+          {secciones.map(seccion => (
+            <div key={seccion.id_Seccion} className="menu-seccion">
+              <h3 className="menu-seccion-titulo">{seccion.Nombre}</h3>
               <div className="menu-cards-grid">
-                {menuPlatos.map((plato, i) => (
-                  <div key={i} className="menu-plato-card">
+                {seccion.platos.map(plato => (
+                  <div key={plato.id_Platos} className="menu-plato-card">
                     <img
                       src={urlImagenPlato(plato)}
                       alt={plato.NombrePlato}
@@ -83,49 +81,25 @@ function MenuDia() {
                     <div className="menu-plato-info">
                       <p className="menu-plato-nombre">{plato.NombrePlato}</p>
                       <p className="menu-plato-desc">{plato.Descripcion}</p>
-                      <p className="menu-plato-precio">{formatPrecio(plato.Precio)}</p>
+                      <p className="menu-plato-precio">
+                        {plato.Disponible === "Agotado" ? "Agotado" : formatPrecio(plato.Precio)}
+                      </p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          )}
-
-          {menuBebidas.length > 0 && (
-            <div className="menu-seccion">
-              <h3 className="menu-seccion-titulo">Bebidas</h3>
-              <div className="menu-cards-grid">
-                {menuBebidas.map((plato, i) => (
-                  <div key={i} className="menu-plato-card">
-                    <img
-                      src={urlImagenPlato(plato)}
-                      alt={plato.NombrePlato}
-                      className="menu-plato-img"
-                    />
-                    <div className="menu-plato-info">
-                      <p className="menu-plato-nombre">{plato.NombrePlato}</p>
-                      <p className="menu-plato-desc">{plato.Descripcion}</p>
-                      <p className="menu-plato-precio">{formatPrecio(plato.Precio)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          ))}
 
           {/* Resumen */}
           <div className="menu-resumen">
             <div className="menu-resumen-item">
-              <span className="menu-resumen-num">{menuPlatos.length}</span>
+              <span className="menu-resumen-num">{secciones.length}</span>
+              <span className="menu-resumen-label">Secciones</span>
+            </div>
+            <div className="menu-resumen-item">
+              <span className="menu-resumen-num">{totalPlatos}</span>
               <span className="menu-resumen-label">Platos</span>
-            </div>
-            <div className="menu-resumen-item">
-              <span className="menu-resumen-num">{menuBebidas.length}</span>
-              <span className="menu-resumen-label">Bebidas</span>
-            </div>
-            <div className="menu-resumen-item">
-              <span className="menu-resumen-num">{menuDelDia.length}</span>
-              <span className="menu-resumen-label">Total</span>
             </div>
           </div>
 

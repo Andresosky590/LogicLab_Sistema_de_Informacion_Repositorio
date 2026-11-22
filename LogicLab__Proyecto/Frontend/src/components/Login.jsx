@@ -43,6 +43,9 @@ function Login({ setUsuario }) {
     } catch (error) {
       if (error.response?.status === 401) {
         alert("Email o contraseña incorrectos")
+      } else if (error.response?.data?.message) {
+        // 403: "Tu solicitud está pendiente de aprobación." o "Este usuario está inactivo."
+        alert(error.response.data.message)
       } else {
         alert("Error al conectar con el servidor")
       }
@@ -138,6 +141,10 @@ const handleIngresoCliente = async (e) => {
 
             <p className="login-forgot-pass" onClick={() => navigate("/recuperar-password")}>
               ¿Olvidaste tu contraseña?
+            </p>
+            
+            <p className="login-forgot-pass login-registro-link" onClick={() => navigate("/solicitar-registro")}>
+              ¿Eres empleado nuevo? Solicita tu registro
             </p>
           </form>
 

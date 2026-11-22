@@ -1,17 +1,21 @@
 // Representa el menú del día y coincide con lo que devuelve
-// GET /api/menu-dia/hoy: { id_Menu, Fecha, Precio, activo, items: [...] }.
+// GET /api/menu-dia/hoy: { id_Menu, Fecha, activo, secciones: [...], items: [...] }.
 // El backend responde `null` (200 OK) cuando el admin aún no ha publicado
 // el menú de hoy — eso se maneja como MenuDia? nulo, no como error.
 class MenuDia {
   final int id;
   final String fecha;
-  final double precio;
+  // Secciones en el orden que armó el admin (ej. "Corriente del día",
+  // "Comida rápida", "Bebidas"), cada una con sus platos.
+  final List<MenuSeccion> secciones;
+  // Todos los platos del menú en una sola lista, para las pantallas
+  // que no necesitan las secciones (pedido asistido, editar pedido).
   final List<MenuDiaItem> items;
 
   MenuDia({
     required this.id,
     required this.fecha,
-    required this.precio,
+    required this.secciones,
     required this.items,
   });
 
@@ -19,7 +23,9 @@ class MenuDia {
     return MenuDia(
       id: json['id_Menu'],
       fecha: json['Fecha'].toString(),
-      precio: double.tryParse(json['Precio'].toString()) ?? 0,
+      secciones: (json['secciones'] as List<dynamic>? ?? [])
+          .map((e) => MenuSeccion.fromJson(e))
+          .toList(),
       items: (json['items'] as List<dynamic>? ?? [])
           .map((e) => MenuDiaItem.fromJson(e))
           .toList(),
@@ -27,12 +33,29 @@ class MenuDia {
   }
 }
 
-// Cada ítem del menú es, o bien un plato real de la carta (id_Platos
-// coincide con un Plato de /api/platos/listar), o la "Corriente del Día",
-// que reutiliza el sentinel id_Platos = 9999 (no es un plato real: se
-// arma con las sopas/proteínas/principios/acompañantes que eligió el
-// admin, igual que en la web).
+class MenuSeccion {
+  final int id;
+  final String nombre;
+  final List<MenuDiaItem> platos;
+
+  MenuSeccion({required this.id, required this.nombre, required this.platos});
+
+  factory MenuSeccion.fromJson(Map<String, dynamic> json) {
+    return MenuSeccion(
+      id: json['id_Seccion'],
+      nombre: json['Nombre'] ?? "",
+      platos: (json['platos'] as List<dynamic>? ?? [])
+          .map((e) => MenuDiaItem.fromJson(e))
+          .toList(),
+    );
+  }
+}
+
+// Cada ítem del menú es un plato real de la carta (id_Platos coincide
+// con un Plato de /api/platos/listar).
 class MenuDiaItem {
+  // Ya no se usa: antes la "Corriente del Día" era un ítem especial con
+  // este id. Se deja para no romper pantallas viejas; siempre da false.
   static const int idCorriente = 9999;
 
   final int idPlatos;
@@ -40,7 +63,8 @@ class MenuDiaItem {
   final String? descripcion;
   final double precio;
   final int idCategoria;
-  final String? imagenUrl; // null = usar la imagen genérica de categoría
+  final String? imagenUrl; // null = sin foto (se muestra un ícono)
+  final bool disponible;
 
   MenuDiaItem({
     required this.idPlatos,
@@ -49,6 +73,7 @@ class MenuDiaItem {
     required this.precio,
     required this.idCategoria,
     required this.imagenUrl,
+    required this.disponible,
   });
 
   bool get esCorriente => idPlatos == idCorriente;
@@ -61,6 +86,8 @@ class MenuDiaItem {
       precio: double.tryParse(json['Precio'].toString()) ?? 0,
       idCategoria: json['id_Categoria'],
       imagenUrl: json['ImagenUrl'],
+      // Si el backend no manda el campo, se asume disponible
+      disponible: json['Disponible'] != "Agotado",
     );
   }
 }

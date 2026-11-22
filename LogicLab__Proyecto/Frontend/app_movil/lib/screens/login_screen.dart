@@ -13,6 +13,7 @@ import 'admin_inicio_screen.dart';
 import 'cliente_vista_general_screen.dart';
 import 'qr_scanner_screen.dart';
 import 'recuperar_password_screen.dart';
+import 'solicitar_registro_screen.dart';
 
 // Paleta neón — misma que Hojas_de_Estilo/Login.css en la web, para que
 // el login se vea igual en PC y en celular.
@@ -117,6 +118,13 @@ class _LoginScreenState extends State<LoginScreen>
             RecuperarPasswordScreen(emailInicial: _emailController.text.trim()),
       ),
     );
+  }
+
+  // Abre el formulario para que un empleado nuevo solicite su registro.
+  void _abrirSolicitudRegistro() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SolicitarRegistroScreen()));
   }
 
   // ==============================================================
@@ -380,6 +388,20 @@ class _LoginScreenState extends State<LoginScreen>
                           ),
                         ),
 
+                        Center(
+                          child: TextButton(
+                            onPressed: _cargando
+                                ? null
+                                : _abrirSolicitudRegistro,
+                            child: Text(
+                              "¿Eres empleado nuevo? Solicita tu registro",
+                              style: GoogleFonts.inter(
+                                color: _neonRed,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 18),
                         Row(
                           children: [

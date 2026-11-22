@@ -594,109 +594,154 @@ class _ClienteVistaGeneralScreenState extends State<ClienteVistaGeneralScreen> {
   // MENÚ DEL DÍA
   // --------------------------------------------------------------
 
+  // La carta del día: una sola "hoja" con las secciones que armó el admin,
+  // como el menú impreso de un restaurante (igual que VistaCliente.jsx).
   Widget _contenidoMenu(MenuDia menu) {
-    final platos = menu.items.where((i) => i.idCategoria != 4).toList();
-    final bebidas = menu.items.where((i) => i.idCategoria == 4).toList();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 18, 14, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF121619),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _clAzul.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final seccion in menu.secciones) ...[
+            _tituloSeccion(seccion.nombre),
+            const SizedBox(height: 6),
+            ...seccion.platos.map(_filaCarta),
+            const SizedBox(height: 18),
+          ],
+        ],
+      ),
+    );
+  }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  // Título con líneas a los lados, como en las cartas
+  Widget _tituloSeccion(String texto) {
+    final linea = Expanded(
+      child: Container(height: 1, color: _clAzul.withValues(alpha: 0.35)),
+    );
+    return Row(
       children: [
-        if (platos.isNotEmpty) ...[
-          _tituloSeccion("PLATOS"),
-          const SizedBox(height: 10),
-          ...platos.map(_tarjetaItem),
-          const SizedBox(height: 18),
-        ],
-        if (bebidas.isNotEmpty) ...[
-          _tituloSeccion("BEBIDAS"),
-          const SizedBox(height: 10),
-          ...bebidas.map(_tarjetaItem),
-        ],
+        linea,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            texto,
+            style: const TextStyle(
+              color: _clAzul,
+              fontSize: 18,
+              fontStyle: FontStyle.italic,
+              fontFamily: "serif",
+            ),
+          ),
+        ),
+        linea,
       ],
     );
   }
 
-  Widget _tituloSeccion(String texto) {
-    return Center(
-      child: Text(
-        texto,
-        style: GoogleFonts.spaceGrotesk(
-          color: _clAzul,
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 2,
-        ),
-      ),
-    );
-  }
-
-  Widget _tarjetaItem(MenuDiaItem item) {
+  // Una línea de la carta: foto redonda, nombre ── precio, descripción
+  // y debajo los botones para agregar.
+  Widget _filaCarta(MenuDiaItem item) {
     final cantidad = _cantidades[item.idPlatos] ?? 0;
+    final agotado = !item.disponible;
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: _clCard,
-        borderRadius: BorderRadius.circular(14),
-        border: item.esCorriente
-            ? Border.all(color: _clNeon)
-            : (cantidad > 0 ? Border.all(color: _clAzul) : null),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: item.imagenUrl != null
-                ? Image.network(
-                    "$baseUrl${item.imagenUrl}",
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => _placeholderImagen(),
-                  )
-                : _placeholderImagen(),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.nombrePlato,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
+    return Opacity(
+      opacity: agotado ? 0.45 : 1,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: cantidad > 0
+              ? _clAzul.withValues(alpha: 0.08)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipOval(
+              child: SizedBox(
+                width: 54,
+                height: 54,
+                child: item.imagenUrl != null
+                    ? Image.network(
+                        "$baseUrl${item.imagenUrl}",
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => _placeholderImagen(),
+                      )
+                    : _placeholderImagen(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          item.nombrePlato,
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.fromLTRB(6, 0, 6, 5),
+                          height: 1,
+                          color: Colors.white24,
+                        ),
+                      ),
+                      Text(
+                        fmtPesos(item.precio),
+                        style: GoogleFonts.spaceGrotesk(
+                          color: _clAzul,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                if ((item.descripcion ?? "").isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    item.descripcion!,
-                    style: GoogleFonts.inter(color: _clMuted, fontSize: 12),
-                  ),
-                ],
-                const SizedBox(height: 10),
-                Row(
-                  children: [
+                  if ((item.descripcion ?? "").isNotEmpty) ...[
+                    const SizedBox(height: 3),
                     Text(
-                      fmtPesos(item.precio),
-                      style: GoogleFonts.spaceGrotesk(
-                        color: _clAzul,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                      item.descripcion!,
+                      style: GoogleFonts.inter(
+                        color: _clMuted,
+                        fontSize: 11.5,
+                        fontStyle: FontStyle.italic,
                       ),
                     ),
-                    const Spacer(),
-                    cantidad == 0
+                  ],
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: agotado
+                        ? Text(
+                            "AGOTADO",
+                            style: GoogleFonts.inter(
+                              color: const Color(0xFFE74C3C),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          )
+                        : cantidad == 0
                         ? OutlinedButton(
                             onPressed: () => _agregar(item),
                             style: OutlinedButton.styleFrom(
                               side: const BorderSide(color: _clNeon),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 14,
-                                vertical: 8,
+                                vertical: 6,
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -712,6 +757,7 @@ class _ClienteVistaGeneralScreenState extends State<ClienteVistaGeneralScreen> {
                             ),
                           )
                         : Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               _botonQty(Icons.remove, () => _quitar(item)),
                               SizedBox(
@@ -729,12 +775,12 @@ class _ClienteVistaGeneralScreenState extends State<ClienteVistaGeneralScreen> {
                               _botonQty(Icons.add, () => _agregar(item)),
                             ],
                           ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

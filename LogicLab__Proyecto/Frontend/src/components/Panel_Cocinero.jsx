@@ -19,7 +19,8 @@ function Panel_Cocinero({ usuario }) {
 
   const [pedidosAgrupados, setPedidosAgrupados] = useState([]);
   const [tab, setTab] = useState("ordenes");
-  const [menuDelDia, setMenuDelDia] = useState([]);
+  // Menú de hoy por secciones, en el orden que armó el admin
+  const [seccionesMenu, setSeccionesMenu] = useState([]);
 
   // ── Refs para detección de pedidos nuevos y control de audio ──
   const idsAnterioresRef = useRef(null)  
@@ -81,8 +82,7 @@ function Panel_Cocinero({ usuario }) {
   const cargarMenuDelDia = async () => {
     try {
       const res = await axios.get(`${API}/api/menu-dia/hoy`);
-      const items = res.data && Array.isArray(res.data.items) ? res.data.items : [];
-      setMenuDelDia(items);
+      setSeccionesMenu(Array.isArray(res.data?.secciones) ? res.data.secciones : []);
     } catch (error) {
       console.error("Error cargando el menú del día:", error);
     }
@@ -123,12 +123,11 @@ function Panel_Cocinero({ usuario }) {
   const formatPrecio = (precio) =>
     `$${Number(precio).toLocaleString("es-CO")}`;
 
-  const menuPlatos = menuDelDia.filter(
-    p => String(p.id_Categoria) !== "4"
-  );
-  const menuBebidas = menuDelDia.filter(
-    p => String(p.id_Categoria) === "4"
-  );
+  const totalPlatosMenu = seccionesMenu.reduce((n, s) => n + s.platos.length, 0);
+
+  // Foto real del plato si existe; si no, la imagen genérica de su categoría
+  const urlImagenPlato = (plato) =>
+    plato.ImagenUrl ? `${API}${plato.ImagenUrl}` : IMG_CATEGORIA[String(plato.id_Categoria)] ?? "/CartaCorriente.png";
 
   return (
     <div className="kitchen-container">
@@ -275,20 +274,20 @@ function Panel_Cocinero({ usuario }) {
         <div className="kitchen-board">
           <h2 className="kitchen-subtitle">MENÚ DEL DÍA</h2>
 
-          {menuDelDia.length === 0 ? (
+          {seccionesMenu.length === 0 ? (
             <div className="kitchen-menu-vacio">
               <p>El administrador aún no ha publicado el menú de hoy.</p>
             </div>
           ) : (
             <>
-              {menuPlatos.length > 0 && (
-                <div className="kitchen-menu-seccion">
-                  <p className="kitchen-menu-grupo-label">Platos</p>
+              {seccionesMenu.map(seccion => (
+                <div key={seccion.id_Seccion} className="kitchen-menu-seccion">
+                  <p className="kitchen-menu-grupo-label">{seccion.Nombre}</p>
                   <div className="kitchen-menu-grid">
-                    {menuPlatos.map((plato, i) => (
-                      <div key={i} className="kitchen-menu-card">
+                    {seccion.platos.map(plato => (
+                      <div key={plato.id_Platos} className="kitchen-menu-card">
                         <img
-                          src={IMG_CATEGORIA[String(plato.id_Categoria)] ?? "/CartaCorriente.png"}
+                          src={urlImagenPlato(plato)}
                           alt={plato.NombrePlato}
                           className="kitchen-menu-card-img"
                         />
@@ -302,63 +301,27 @@ function Panel_Cocinero({ usuario }) {
                             </p>
                           )}
                           <p className="kitchen-menu-card-precio">
-                            {formatPrecio(plato.Precio)}
+                            {plato.Disponible === "Agotado" ? "Agotado" : formatPrecio(plato.Precio)}
                           </p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              )}
-
-              {menuBebidas.length > 0 && (
-                <div className="kitchen-menu-seccion">
-                  <p className="kitchen-menu-grupo-label">Bebidas</p>
-                  <div className="kitchen-menu-grid">
-                    {menuBebidas.map((plato, i) => (
-                      <div key={i} className="kitchen-menu-card">
-                        <img
-                          src={IMG_CATEGORIA["4"]}
-                          alt={plato.NombrePlato}
-                          className="kitchen-menu-card-img"
-                        />
-                        <div className="kitchen-menu-card-body">
-                          <p className="kitchen-menu-card-nombre">
-                            {plato.NombrePlato}
-                          </p>
-                          {plato.Descripcion && (
-                            <p className="kitchen-menu-card-desc">
-                              {plato.Descripcion}
-                            </p>
-                          )}
-                          <p className="kitchen-menu-card-precio">
-                            {formatPrecio(plato.Precio)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              ))}
 
               <div className="kitchen-menu-resumen">
                 <div className="kitchen-menu-resumen-item">
                   <span className="kitchen-menu-resumen-num">
-                    {menuPlatos.length}
+                    {seccionesMenu.length}
+                  </span>
+                  <span className="kitchen-menu-resumen-label">Secciones</span>
+                </div>
+                <div className="kitchen-menu-resumen-item">
+                  <span className="kitchen-menu-resumen-num">
+                    {totalPlatosMenu}
                   </span>
                   <span className="kitchen-menu-resumen-label">Platos</span>
-                </div>
-                <div className="kitchen-menu-resumen-item">
-                  <span className="kitchen-menu-resumen-num">
-                    {menuBebidas.length}
-                  </span>
-                  <span className="kitchen-menu-resumen-label">Bebidas</span>
-                </div>
-                <div className="kitchen-menu-resumen-item">
-                  <span className="kitchen-menu-resumen-num">
-                    {menuDelDia.length}
-                  </span>
-                  <span className="kitchen-menu-resumen-label">Total</span>
                 </div>
               </div>
             </>

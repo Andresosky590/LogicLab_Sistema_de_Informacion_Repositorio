@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import axios from "axios"
 import Login from './components/Login'
 import RecuperarPassword from './components/RecuperarPassword'
+import SolicitarRegistro from './components/SolicitarRegistro'
 import VistaCliente from './components/VistaCliente'
 import Panel_Mesero, { LayoutMesero } from './components/Panel_Mesero'
 import Panel_Cocinero from './components/Panel_Cocinero'
@@ -37,6 +38,7 @@ function App() {
       {/* ── Rutas públicas ── */}
       <Route path="/login"       element={<Login setUsuario={setUsuario} />} />
       <Route path="/recuperar-password" element={<RecuperarPassword />} />
+      <Route path="/solicitar-registro" element={<SolicitarRegistro />} />
 
       {/* ── Redireccion raíz ── */}
       <Route path="/" element={<Navigate to="/login" replace />} />

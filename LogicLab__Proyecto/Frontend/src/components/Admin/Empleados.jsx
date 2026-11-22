@@ -25,16 +25,70 @@ function Empleados() {
     const [guardandoNuevo, setGuardandoNuevo] = useState(false)
     const [mensajeNuevo, setMensajeNuevo] = useState(null)
 
-    useEffect(() => { obtenerEmpleados() }, [])
+    // Solicitudes de registro (empleados nuevos esperando aprobación)
+    const [solicitudes, setSolicitudes] = useState([])
+    const [rolAprobacion, setRolAprobacion] = useState({})   // { idSolicitud: rolId elegido }
+    const [procesandoId, setProcesandoId] = useState(null)
+    const [mensajeSolicitudes, setMensajeSolicitudes] = useState(null)
+    const [solicitudADescartar, setSolicitudADescartar] = useState(null)
+
+    useEffect(() => {
+        obtenerEmpleados()
+        obtenerSolicitudes()
+    }, [])
 
     const obtenerEmpleados = async () => {
         try {
             const res = await axios.get(`${API}/api/usuarios/listar`)
-            setEmpleados(res.data)
+            // Sin empleados el backend responde { message } en vez de una lista
+            setEmpleados(Array.isArray(res.data) ? res.data : [])
         } catch (err) {
             setError("No se pudo conectar con el servidor")
         } finally {
             setCargando(false)
+        }
+    }
+
+    const obtenerSolicitudes = async () => {
+        try {
+            const res = await axios.get(`${API}/api/usuarios/solicitudes`)
+            setSolicitudes(Array.isArray(res.data) ? res.data : [])
+        } catch (err) {
+            setSolicitudes([])
+        }
+    }
+
+    // Por defecto se aprueba con el rol que pidió el empleado
+    const rolElegido = (sol) => rolAprobacion[sol.id_Usuarios_Restaurante] ?? sol.id_Roles_Usuarios
+
+    const aprobarSolicitud = async (sol) => {
+        setProcesandoId(sol.id_Usuarios_Restaurante)
+        setMensajeSolicitudes(null)
+        try {
+            await axios.put(`${API}/api/usuarios/solicitudes/${sol.id_Usuarios_Restaurante}/aprobar`, {
+                rolId: Number(rolElegido(sol))
+            })
+            await Promise.all([obtenerSolicitudes(), obtenerEmpleados()])
+            setMensajeSolicitudes({ tipo: "ok", texto: `${sol.Nombre} ${sol.Apellido} ya puede iniciar sesión` })
+        } catch (err) {
+            setMensajeSolicitudes({ tipo: "error", texto: err.response?.data?.message || "Error al aprobar la solicitud" })
+        } finally {
+            setProcesandoId(null)
+        }
+    }
+
+    const descartarSolicitud = async () => {
+        const sol = solicitudADescartar
+        setProcesandoId(sol.id_Usuarios_Restaurante)
+        setMensajeSolicitudes(null)
+        try {
+            await axios.delete(`${API}/api/usuarios/solicitudes/${sol.id_Usuarios_Restaurante}`)
+            await obtenerSolicitudes()
+        } catch (err) {
+            setMensajeSolicitudes({ tipo: "error", texto: err.response?.data?.message || "Error al descartar la solicitud" })
+        } finally {
+            setProcesandoId(null)
+            setSolicitudADescartar(null)
         }
     }
 
@@ -196,6 +250,50 @@ function Empleados() {
                 <p className="emp-subtitulo">{empleados.length} empleados registrados</p>
             </div>
 
+            {solicitudes.length > 0 && (
+                <div className="emp-grupo grupo-solicitudes">
+                    <h2 className="emp-grupo-titulo">
+                        SOLICITUDES DE REGISTRO
+                        <span className="emp-grupo-count">{solicitudes.length}</span>
+                    </h2>
+
+                    {mensajeSolicitudes && (
+                        <p className={`emp-modal-mensaje ${mensajeSolicitudes.tipo === "ok" ? "emp-modal-ok" : "emp-modal-err"}`}>
+                            {mensajeSolicitudes.texto}
+                        </p>
+                    )}
+
+                    <div className="emp-cards-grid">
+                        {solicitudes.map(sol => (
+                            <div key={sol.id_Usuarios_Restaurante} className="emp-card">
+                                <div className="emp-card-info">
+                                    <p className="emp-card-nombre">{sol.Nombre} {sol.Apellido}</p>
+                                    <p className="emp-card-email">{sol.Email}</p>
+                                    <p className="emp-card-email">Documento: {sol.Numero_Documento}</p>
+                                    <p className="emp-card-email">Solicitada: {String(sol.Fecha_Registro).substring(0, 16)}</p>
+                                    <select className="emp-modal-select"
+                                        value={rolElegido(sol)}
+                                        onChange={e => setRolAprobacion({ ...rolAprobacion, [sol.id_Usuarios_Restaurante]: Number(e.target.value) })}>
+                                        <option value={1}>Mesero</option>
+                                        <option value={2}>Cocinero</option>
+                                    </select>
+                                </div>
+                                <div className="emp-card-acciones">
+                                    <button className="emp-btn-editar"
+                                        disabled={procesandoId === sol.id_Usuarios_Restaurante}
+                                        onClick={() => aprobarSolicitud(sol)}>
+                                        {procesandoId === sol.id_Usuarios_Restaurante ? "..." : "Aprobar"}
+                                    </button>
+                                    <button className="emp-btn-eliminar" title="Descartar solicitud"
+                                        disabled={procesandoId === sol.id_Usuarios_Restaurante}
+                                        onClick={() => setSolicitudADescartar(sol)}>✕</button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             <GrupoEmpleados titulo="MESEROS" lista={meseros} className="grupo-mesero" rol="Mesero" />
             <GrupoEmpleados titulo="COCINEROS" lista={cocineros} className="grupo-cocinero" rol="Cocinero" />
             <GrupoEmpleados titulo="ADMINISTRADORES"  lista={administradores} className="grupo-admin" rol="Administrador" />
@@ -299,19 +397,42 @@ function Empleados() {
                 <div className="emp-modal-overlay" onClick={cerrarConfirmacion}>
                     <div className="emp-modal emp-modal-confirmar" onClick={e => e.stopPropagation()}>
                         <div className="emp-modal-header emp-modal-header-eliminar">
-                            <h2 className="emp-modal-titulo">ELIMINAR EMPLEADO</h2>
+                            <h2 className="emp-modal-titulo">DESACTIVAR EMPLEADO</h2>
                             <p className="emp-modal-nombre">{empleadoAEliminar.Nombre} {empleadoAEliminar.Apellido}</p>
                         </div>
                         <div className="emp-modal-body">
                             <p className="emp-confirmar-texto">
-                                ¿Estás seguro de que deseas eliminar a <strong>{empleadoAEliminar.Nombre} {empleadoAEliminar.Apellido}</strong>?
-                                Esta acción no se puede deshacer.
+                                ¿Deseas desactivar a <strong>{empleadoAEliminar.Nombre} {empleadoAEliminar.Apellido}</strong>?
+                                Ya no podrá iniciar sesión, pero su historial de pedidos se conserva.
                             </p>
                         </div>
                         <div className="emp-modal-footer">
                             <button className="emp-btn-cancelar" onClick={cerrarConfirmacion} disabled={eliminando}>Cancelar</button>
                             <button className="emp-btn-eliminar-modal" onClick={eliminarEmpleado} disabled={eliminando}>
-                                {eliminando ? "Eliminando..." : "Sí, eliminar"}
+                                {eliminando ? "Desactivando..." : "Sí, desactivar"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {solicitudADescartar && (
+                <div className="emp-modal-overlay" onClick={() => !procesandoId && setSolicitudADescartar(null)}>
+                    <div className="emp-modal emp-modal-confirmar" onClick={e => e.stopPropagation()}>
+                        <div className="emp-modal-header emp-modal-header-eliminar">
+                            <h2 className="emp-modal-titulo">DESCARTAR SOLICITUD</h2>
+                            <p className="emp-modal-nombre">{solicitudADescartar.Nombre} {solicitudADescartar.Apellido}</p>
+                        </div>
+                        <div className="emp-modal-body">
+                            <p className="emp-confirmar-texto">
+                                La solicitud se eliminará. Si la persona sí trabaja en el restaurante,
+                                tendrá que volver a enviarla o puedes crearla tú desde el botón +.
+                            </p>
+                        </div>
+                        <div className="emp-modal-footer">
+                            <button className="emp-btn-cancelar" onClick={() => setSolicitudADescartar(null)} disabled={!!procesandoId}>Cancelar</button>
+                            <button className="emp-btn-eliminar-modal" onClick={descartarSolicitud} disabled={!!procesandoId}>
+                                {procesandoId ? "Descartando..." : "Sí, descartar"}
                             </button>
                         </div>
                     </div>

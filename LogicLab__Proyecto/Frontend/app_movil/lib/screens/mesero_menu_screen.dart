@@ -154,9 +154,6 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
       );
     }
 
-    final platos = menu.items.where((i) => i.idCategoria != 4).toList();
-    final bebidas = menu.items.where((i) => i.idCategoria == 4).toList();
-
     return RefreshIndicator(
       color: _mNaranja,
       backgroundColor: Colors.black,
@@ -164,16 +161,12 @@ class _MeseroMenuScreenState extends State<MeseroMenuScreen> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (platos.isNotEmpty) ...[
-            _titulo("PLATOS"),
+          // Secciones en el orden que armó el admin
+          for (final seccion in menu.secciones) ...[
+            _titulo(seccion.nombre.toUpperCase()),
             const SizedBox(height: 10),
-            ...platos.map(_tarjeta),
+            ...seccion.platos.map(_tarjeta),
             const SizedBox(height: 18),
-          ],
-          if (bebidas.isNotEmpty) ...[
-            _titulo("BEBIDAS"),
-            const SizedBox(height: 10),
-            ...bebidas.map(_tarjeta),
           ],
         ],
       ),
