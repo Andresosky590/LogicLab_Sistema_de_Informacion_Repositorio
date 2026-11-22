@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom"
 import '../../../Hojas_de_Estilo/Administrador.css'
 import '../../App.css'
 
-const API = "http://localhost:5030"
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030"
 
 const PQRSF_ICON_TIPO = {
     "Petición": "📋",
@@ -118,12 +118,20 @@ export function LayoutAdmin({ usuario, paginaActual, children }) {
 function Panel_Administrador({ usuario }) {
     const [pedidos, setPedidos] = useState([])
     const [mesas, setMesas] = useState([])
-    const [menuDelDia, setMenuDelDia] = useState([])
+    // Menú de hoy por secciones (corriente, comida rápida, bebidas...)
+    const [seccionesMenu, setSeccionesMenu] = useState([])
 
     const [registrosPqrsf, setRegistrosPqrsf] = useState([])
     const [cargando, setCargando] = useState(true)
+    const [solicitudesPendientes, setSolicitudesPendientes] = useState(0)
+    const navigate = useNavigate()
 
     const cargarDashboard = useCallback(async () => {
+        axios.get(`${API}/api/usuarios/solicitudes`)
+            .then(res => setSolicitudesPendientes(Array.isArray(res.data) ? res.data.length : 0))
+            .catch(() => {})
+
+
         try {
             const [resPedidos, resMesas, resPqrsf, resMenuDia] = await Promise.all([
                 axios.get(`${API}/api/pedidos/listar`),
@@ -135,7 +143,7 @@ function Panel_Administrador({ usuario }) {
             setPedidos(Array.isArray(resPedidos.data) ? resPedidos.data : [])
             setMesas(Array.isArray(resMesas.data) ? resMesas.data : [])
             setRegistrosPqrsf(Array.isArray(resPqrsf.data) ? resPqrsf.data : [])
-            setMenuDelDia(resMenuDia.data && Array.isArray(resMenuDia.data.items) ? resMenuDia.data.items : [])
+            setSeccionesMenu(Array.isArray(resMenuDia.data?.secciones) ? resMenuDia.data.secciones : [])
         } catch (error) {
             console.error("Error cargando dashboard:", error)
         } finally {
@@ -184,13 +192,7 @@ function Panel_Administrador({ usuario }) {
             ? Math.round((mesasOcupadas / mesas.length) * 100)
             : 0
 
-    const menuPlatos = menuDelDia.filter(
-        p => String(p.id_Categoria) !== "4"
-    )
-
-    const menuBebidas = menuDelDia.filter(
-        p => String(p.id_Categoria) === "4"
-    )
+    const totalPlatosMenu = seccionesMenu.reduce((n, s) => n + s.platos.length, 0)
 
     const pagosPorMetodo = pagosAprobadosHoy.reduce((acc, pedido) => {
         const metodo = nombreMetodo(pedido.MetodoPago)
@@ -234,7 +236,7 @@ function Panel_Administrador({ usuario }) {
                             </h2>
                         </div>
 
-                        {menuDelDia.length === 0 ? (
+                        {seccionesMenu.length === 0 ? (
                             <div className="empty-placeholder">
                                 <i
                                     className="bi bi-clipboard-x"
@@ -245,7 +247,7 @@ function Panel_Administrador({ usuario }) {
                                 ></i>
 
                                 <p style={{ marginTop: "10px" }}>
-                                    Sin platos asignados
+                                    Sin menú publicado hoy
                                 </p>
 
                                 <span>
@@ -255,18 +257,14 @@ function Panel_Administrador({ usuario }) {
                             </div>
                         ) : (
                             <div className="menu-dia-lista">
-
-                                {menuPlatos.length > 0 && (
-                                    <div className="menu-dia-grupo">
+                                {seccionesMenu.map(s => (
+                                    <div key={s.id_Seccion} className="menu-dia-grupo">
                                         <p className="menu-dia-grupo-label">
-                                            PLATOS
+                                            {s.Nombre.toUpperCase()}
                                         </p>
 
-                                        {menuPlatos.map((p, i) => (
-                                            <div
-                                                key={i}
-                                                className="menu-dia-item"
-                                            >
+                                        {s.platos.map(p => (
+                                            <div key={p.id_Platos} className="menu-dia-item">
                                                 <span className="menu-dia-nombre">
                                                     {p.NombrePlato}
                                                 </span>
@@ -277,33 +275,10 @@ function Panel_Administrador({ usuario }) {
                                             </div>
                                         ))}
                                     </div>
-                                )}
-
-                                {menuBebidas.length > 0 && (
-                                    <div className="menu-dia-grupo">
-                                        <p className="menu-dia-grupo-label">
-                                            BEBIDAS
-                                        </p>
-
-                                        {menuBebidas.map((p, i) => (
-                                            <div
-                                                key={i}
-                                                className="menu-dia-item"
-                                            >
-                                                <span className="menu-dia-nombre">
-                                                    {p.NombrePlato}
-                                                </span>
-
-                                                <span className="menu-dia-precio">
-                                                    {fmt(p.Precio)}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                                ))}
 
                                 <p className="menu-dia-total">
-                                    {menuDelDia.length} ítems en el menú
+                                    {seccionesMenu.length} secciones · {totalPlatosMenu} platos en el menú
                                 </p>
                             </div>
                         )}
@@ -422,6 +397,24 @@ function Panel_Administrador({ usuario }) {
                             <p className="stat-number">
                                 {pedidosEntregadosHoy.length}
                             </p>
+                            
+                           <div className="stat-card" style={{ cursor: "pointer" }}
+                              onClick={() => navigate("/empleados")}
+                              title="Ver solicitudes en Empleados">
+                              <div className="stat-card-icon-wrap">
+                                  <i className="bi bi-person-plus stat-card-icon"></i>
+                              </div>
+
+                              <div className="stat-card-info">
+                                  <p className="stat-card-label">
+                                Solicitudes de registro
+                                  </p>
+
+                                  <p className="stat-number">
+                                      {solicitudesPendientes}
+                                  </p>
+                              </div>
+                          </div>      
                         </div>
                     </div>
                 </div>

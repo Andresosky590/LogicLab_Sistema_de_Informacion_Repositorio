@@ -9,6 +9,7 @@
          el selector de fotos del sistema, que no requiere permiso. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <application
+        android:usesCleartextTraffic="true"
         android:label="app_movil"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

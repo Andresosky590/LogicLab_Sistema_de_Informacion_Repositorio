@@ -13,6 +13,7 @@ import 'admin_inicio_screen.dart';
 import 'cliente_vista_general_screen.dart';
 import 'qr_scanner_screen.dart';
 import 'recuperar_password_screen.dart';
+import 'solicitar_registro_screen.dart';
 
 // Paleta neón — misma que Hojas_de_Estilo/Login.css en la web, para que
 // el login se vea igual en PC y en celular.
@@ -113,11 +114,17 @@ class _LoginScreenState extends State<LoginScreen>
   void _abrirRecuperacion() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => RecuperarPasswordScreen(
-          emailInicial: _emailController.text.trim(),
-        ),
+        builder: (_) =>
+            RecuperarPasswordScreen(emailInicial: _emailController.text.trim()),
       ),
     );
+  }
+
+  // Abre el formulario para que un empleado nuevo solicite su registro.
+  void _abrirSolicitudRegistro() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SolicitarRegistroScreen()));
   }
 
   // ==============================================================
@@ -146,6 +153,19 @@ class _LoginScreenState extends State<LoginScreen>
       final mesa = await _clienteController.resolverMesaPorToken(token);
       if (!mounted) return;
 
+      if (mesa.estado.toLowerCase() == "ocupada") {
+        throw Exception("Esta mesa ya está ocupada.");
+      }
+
+      final personas = await _preguntarPersonas();
+      if (personas == null || !mounted) {
+        setState(() => _escaneando = false);
+        return;
+      }
+
+      await _clienteController.ocuparMesa(mesa.id, personas);
+      if (!mounted) return;
+
       // BUGFIX: se guarda la sesión de esta mesa para que, si se
       // refresca la página (Flutter Web reinicia toda la app),
       // MangataApp lo mande directo de vuelta acá en vez de al login.
@@ -163,6 +183,37 @@ class _LoginScreenState extends State<LoginScreen>
     } finally {
       if (mounted) setState(() => _escaneando = false);
     }
+  }
+
+  Future<int?> _preguntarPersonas() async {
+    final controlador = TextEditingController();
+    return showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (contexto) => AlertDialog(
+        title: const Text("¿Cuántas personas son?"),
+        content: TextField(
+          controller: controlador,
+          keyboardType: TextInputType.number,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: "Entre 1 y 20 personas"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(contexto),
+            child: const Text("Cancelar"),
+          ),
+          FilledButton(
+            onPressed: () {
+              final personas = int.tryParse(controlador.text);
+              if (personas == null || personas < 1 || personas > 20) return;
+              Navigator.pop(contexto, personas);
+            },
+            child: const Text("Continuar"),
+          ),
+        ],
+      ),
+    );
   }
 
   // El QR trae "$webBaseUrl/vistacliente?mesa=<token>". Si por algún
@@ -337,6 +388,20 @@ class _LoginScreenState extends State<LoginScreen>
                           ),
                         ),
 
+                        Center(
+                          child: TextButton(
+                            onPressed: _cargando
+                                ? null
+                                : _abrirSolicitudRegistro,
+                            child: Text(
+                              "¿Eres empleado nuevo? Solicita tu registro",
+                              style: GoogleFonts.inter(
+                                color: _neonRed,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ),
+                        ),
                         const SizedBox(height: 18),
                         Row(
                           children: [

@@ -11,7 +11,6 @@ import '../notificacion_sonido.dart';
 import '../widgets/mesero_drawer.dart';
 
 const Color _mNaranja = Color(0xFFE87D2A);
-const Color _mNaranjaBorder = Color(0x4DE87D2A);
 const Color _mBg = Color(0xFF0A0A0A);
 const Color _mCard = Color(0x0AFFFFFF);
 const Color _mMuted = Color(0xFF888888);
@@ -38,15 +37,8 @@ class _MeseroMensajesCocinaScreenState
   List<PedidoMesero> _pedidos = [];
   final Set<int> _entregando = {};
 
-  // ==============================================================
-  // ALERTAS DE PEDIDOS LISTOS
-  // ==============================================================
-  //
-  // Antes esta pantalla solo cargaba una vez al entrar — si el
-  // mesero no volvía a abrirla, nunca se enteraba de que un plato
-  // ya estaba listo para recoger. Ahora hace polling como el resto
-  // de la app, y avisa con vibración + sonido + un banner cada vez
-  // que aparece un pedido "listo" que no se le había mostrado antes
+  // Polling + vibración + sonido + banner cada vez que aparece un
+  // pedido "listo" que no se le había mostrado antes al mesero
   // (_idsConocidos guarda cuáles ya se mostraron).
   Timer? _polling;
   final Set<int> _idsConocidos = {};
@@ -57,8 +49,6 @@ class _MeseroMensajesCocinaScreenState
   void initState() {
     super.initState();
     _cargar();
-    // Se bajó de 15s a 4s para que el mesero se entere casi al
-    // instante de que el cocinero marcó un plato como listo.
     _polling = Timer.periodic(
       const Duration(seconds: 4),
       (_) => _cargar(silencioso: true),
@@ -79,12 +69,16 @@ class _MeseroMensajesCocinaScreenState
       });
     }
     try {
-      final pedidos = await _controller.cargarPorEstado("listo");
+      // Solo los pedidos listos que tomó este mesero: así no entrega
+      // ni recibe avisos de los pedidos de otro compañero.
+      final miId = await _controller.obtenerIdUsuario();
+      final pedidos = (await _controller.cargarPorEstado(
+        "listo",
+      )).where((p) => p.idMesero != null && p.idMesero == miId).toList();
       if (!mounted) return;
 
-      // En la primera carga (al entrar a la pantalla) no se alerta:
-      // esos pedidos ya estaban listos antes de que el mesero abriera
-      // la pantalla, no acaban de llegar recién ahora.
+      // En la primera carga no se alerta: esos pedidos ya estaban
+      // listos antes de que el mesero abriera la pantalla.
       if (!_primeraCarga) {
         final nuevos = pedidos
             .where((p) => !_idsConocidos.contains(p.id))

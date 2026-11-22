@@ -44,21 +44,17 @@ class MenuDiaRepository {
     return MenuDia.fromJson(data);
   }
 
-  // POST /api/menu-dia/publicar
-  // items: cada uno con { id_Platos, categoria, nombreItem }.
-  // Para la Corriente del Día: id_Platos = 9999, nombreItem = descripción armada.
-  // Para un plato real: id_Platos real, categoria = id_Categoria, nombreItem = NombrePlato.
-  Future<void> publicarMenu({
-    required double precio,
-    required List<Map<String, dynamic>> items,
-  }) async {
+  // POST /api/menu-dia/publicar (solo admin)
+  // secciones: [{ "nombre": "Comida rápida", "platos": [6, 7] }, ...]
+  // El orden de la lista es el orden en que se muestran.
+  Future<void> publicarMenu(List<Map<String, dynamic>> secciones) async {
     final headers = await _headersConToken();
     late http.Response response;
     try {
       response = await http.post(
         Uri.parse("$baseUrl/api/menu-dia/publicar"),
         headers: headers,
-        body: jsonEncode({"precio": precio, "items": items}),
+        body: jsonEncode({"secciones": secciones}),
       );
     } catch (e) {
       throw MenuDiaException("No se pudo conectar con el servidor.");

@@ -41,4 +41,13 @@ class EmpleadoController {
   }
 
   Future<void> eliminarEmpleado(int id) => _repository.eliminarEmpleado(id);
+
+  // ── Solicitudes de registro ──
+  Future<List<Empleado>> cargarSolicitudes() =>
+      _repository.obtenerSolicitudes();
+
+  Future<void> aprobarSolicitud(int id, int rolId) =>
+      _repository.aprobarSolicitud(id, rolId);
+
+  Future<void> descartarSolicitud(int id) => _repository.descartarSolicitud(id);
 }

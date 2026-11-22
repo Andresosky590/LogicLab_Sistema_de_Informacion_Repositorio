@@ -1,6 +1,7 @@
 // Representa un empleado (mesero, cocinero o administrador) tal como
-// lo devuelve GET /api/usuarios/listar
-// ({ id_Usuarios_Restaurante, Nombre, Apellido, Email, id_Roles_Usuarios, Activo }).
+// lo devuelven GET /api/usuarios/listar y GET /api/usuarios/solicitudes
+// ({ id_Usuarios_Restaurante, Nombre, Apellido, Email, id_Tipo_Documento,
+//    Numero_Documento, id_Roles_Usuarios, Estado, Fecha_Registro }).
 //
 // Distinto del modelo `Usuario` (models/usuario_model.dart), que
 // representa la sesión iniciada y viene de POST /api/usuarios/login
@@ -11,7 +12,9 @@ class Empleado {
   final String apellido;
   final String email;
   final int rolId;
-  final bool activo;
+  final String estado; // 'pendiente', 'activo' o 'inactivo'
+  final String? numeroDocumento;
+  final String fechaRegistro;
 
   Empleado({
     required this.id,
@@ -19,10 +22,14 @@ class Empleado {
     required this.apellido,
     required this.email,
     required this.rolId,
-    required this.activo,
+    required this.estado,
+    this.numeroDocumento,
+    this.fechaRegistro = "",
   });
 
   String get nombreCompleto => "$nombre $apellido";
+  bool get activo => estado == "activo";
+  bool get pendiente => estado == "pendiente";
 
   factory Empleado.fromJson(Map<String, dynamic> json) {
     return Empleado(
@@ -31,7 +38,9 @@ class Empleado {
       apellido: json['Apellido'] ?? "",
       email: json['Email'] ?? "",
       rolId: json['id_Roles_Usuarios'],
-      activo: json['Activo'] == 1 || json['Activo'] == true,
+      estado: json['Estado'] ?? "activo",
+      numeroDocumento: json['Numero_Documento'],
+      fechaRegistro: json['Fecha_Registro'] ?? "",
     );
   }
 }

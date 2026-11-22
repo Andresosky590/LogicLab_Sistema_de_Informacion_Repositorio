@@ -43,6 +43,7 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
   bool _cargando = true;
   String? _error;
   List<Empleado> _empleados = [];
+  List<Empleado> _solicitudes = [];
 
   @override
   void initState() {
@@ -51,7 +52,7 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
   }
 
   // ==============================================================
-  // CARGAR
+  // CARGAR (empleados activos + solicitudes pendientes)
   // ==============================================================
 
   Future<void> _cargar() async {
@@ -61,10 +62,14 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
     });
 
     try {
-      final datos = await _controller.cargarEmpleados();
+      final resultados = await Future.wait([
+        _controller.cargarEmpleados(),
+        _controller.cargarSolicitudes(),
+      ]);
       if (!mounted) return;
       setState(() {
-        _empleados = datos;
+        _empleados = resultados[0];
+        _solicitudes = resultados[1];
         _cargando = false;
       });
     } catch (e) {
@@ -78,6 +83,75 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
 
   List<Empleado> _porRol(int rolId) =>
       _empleados.where((e) => e.rolId == rolId).toList();
+
+  void _aviso(String texto, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(texto),
+        backgroundColor: error
+            ? const Color(0xFFE74C3C)
+            : const Color(0xFF1E8E4E),
+      ),
+    );
+  }
+
+  // ==============================================================
+  // SOLICITUDES: APROBAR / DESCARTAR
+  // ==============================================================
+
+  Future<void> _aprobar(Empleado solicitud, int rolId) async {
+    try {
+      await _controller.aprobarSolicitud(solicitud.id, rolId);
+      if (!mounted) return;
+      _aviso("${solicitud.nombreCompleto} ya puede iniciar sesión.");
+      await _cargar();
+    } catch (e) {
+      if (!mounted) return;
+      _aviso(e.toString(), error: true);
+    }
+  }
+
+  Future<void> _descartar(Empleado solicitud) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (contexto) => AlertDialog(
+        backgroundColor: const Color(0xFF161616),
+        title: Text(
+          "¿Descartar la solicitud de \"${solicitud.nombreCompleto}\"?",
+          style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 15),
+        ),
+        content: Text(
+          "La solicitud se eliminará. Si la persona sí trabaja en el "
+          "restaurante, tendrá que enviarla de nuevo o puedes crearla tú con el botón +.",
+          style: GoogleFonts.inter(color: _emMuted, fontSize: 12.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(contexto).pop(false),
+            child: const Text("Cancelar", style: TextStyle(color: _emMuted)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(contexto).pop(true),
+            child: const Text(
+              "Descartar",
+              style: TextStyle(color: Color(0xFFE74C3C)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmar != true) return;
+
+    try {
+      await _controller.descartarSolicitud(solicitud.id);
+      if (!mounted) return;
+      _aviso("Solicitud descartada.");
+      await _cargar();
+    } catch (e) {
+      if (!mounted) return;
+      _aviso(e.toString(), error: true);
+    }
+  }
 
   // ==============================================================
   // BUILD
@@ -159,6 +233,15 @@ class _EmpleadosScreenState extends State<EmpleadosScreen> {
             style: GoogleFonts.inter(color: _emMuted, fontSize: 12.5),
           ),
           const SizedBox(height: 18),
+
+          if (_solicitudes.isNotEmpty) ...[
+            _SeccionSolicitudes(
+              solicitudes: _solicitudes,
+              onAprobar: _aprobar,
+              onDescartar: _descartar,
+            ),
+            const SizedBox(height: 22),
+          ],
 
           _SeccionRol(
             titulo: "MESEROS",
@@ -846,6 +929,194 @@ class _Campo extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
         ),
+      ),
+    );
+  }
+}
+
+// ================================================================
+// SOLICITUDES DE REGISTRO (empleados nuevos esperando aprobación)
+// ================================================================
+
+class _SeccionSolicitudes extends StatelessWidget {
+  final List<Empleado> solicitudes;
+  final Future<void> Function(Empleado, int) onAprobar;
+  final Future<void> Function(Empleado) onDescartar;
+
+  const _SeccionSolicitudes({
+    required this.solicitudes,
+    required this.onAprobar,
+    required this.onDescartar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              "SOLICITUDES DE REGISTRO",
+              style: GoogleFonts.spaceGrotesk(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: _emNeon,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                "${solicitudes.length}",
+                style: GoogleFonts.inter(
+                  color: Colors.black,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ...solicitudes.map(
+          (s) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _SolicitudCard(
+              // la key evita que una tarjeta herede el rol elegido de otra
+              key: ValueKey(s.id),
+              solicitud: s,
+              onAprobar: (rolId) => onAprobar(s, rolId),
+              onDescartar: () => onDescartar(s),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SolicitudCard extends StatefulWidget {
+  final Empleado solicitud;
+  final Future<void> Function(int rolId) onAprobar;
+  final Future<void> Function() onDescartar;
+
+  const _SolicitudCard({
+    super.key,
+    required this.solicitud,
+    required this.onAprobar,
+    required this.onDescartar,
+  });
+
+  @override
+  State<_SolicitudCard> createState() => _SolicitudCardState();
+}
+
+class _SolicitudCardState extends State<_SolicitudCard> {
+  // Por defecto se aprueba con el rol que pidió el empleado
+  late int _rol = widget.solicitud.rolId;
+  bool _procesando = false;
+
+  Future<void> _ejecutar(Future<void> Function() accion) async {
+    setState(() => _procesando = true);
+    await accion();
+    if (mounted) setState(() => _procesando = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.solicitud;
+    final fecha = s.fechaRegistro.length >= 16
+        ? s.fechaRegistro.substring(0, 16)
+        : s.fechaRegistro;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _emCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _emNeon),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            s.nombreCompleto,
+            style: GoogleFonts.spaceGrotesk(
+              color: Colors.white,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            s.email,
+            style: GoogleFonts.inter(color: _emMuted, fontSize: 11.5),
+          ),
+          Text(
+            "Documento: ${s.numeroDocumento ?? "—"} · $fecha",
+            style: GoogleFonts.inter(color: _emMuted, fontSize: 11.5),
+          ),
+          const SizedBox(height: 10),
+          _Etiqueta("Aprobar como"),
+          Wrap(
+            spacing: 8,
+            children: [RolId.mesero, RolId.cocinero].map((id) {
+              final elegido = _rol == id;
+              return ChoiceChip(
+                label: Text(nombresRol[id]!),
+                selected: elegido,
+                showCheckmark: false,
+                selectedColor: _emNeon,
+                backgroundColor: _emInputBg,
+                labelStyle: GoogleFonts.inter(
+                  color: elegido ? Colors.black : Colors.white,
+                  fontSize: 12.5,
+                ),
+                side: BorderSide(color: elegido ? _emNeon : _emNeonBorder),
+                onSelected: _procesando
+                    ? null
+                    : (_) => setState(() => _rol = id),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              TextButton(
+                onPressed: _procesando
+                    ? null
+                    : () => _ejecutar(widget.onDescartar),
+                child: const Text(
+                  "Descartar",
+                  style: TextStyle(color: Color(0xFFE74C3C)),
+                ),
+              ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: _procesando
+                    ? null
+                    : () => _ejecutar(() => widget.onAprobar(_rol)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _emNeon,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  _procesando ? "..." : "Aprobar",
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

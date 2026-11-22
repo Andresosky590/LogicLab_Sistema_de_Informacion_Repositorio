@@ -8,7 +8,7 @@ import {
   reproducirNotificacion,
 } from "./utils/audioHelper";
 
-const API = "http://localhost:5030";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030";
 
 const IMG_CATEGORIA = {
   "1": "/CartaCorriente.png",
@@ -27,7 +27,9 @@ const urlImagenPlato = (plato) => {
   );
 };
 
-const TarjetaPlato = ({
+// Una línea de la carta: foto pequeña, nombre ..... precio y descripción,
+// como en el menú impreso de un restaurante. Al tocarla se abren las peticiones.
+const FilaCarta = ({
   plato,
   agregado,
   expandida,
@@ -38,96 +40,50 @@ const TarjetaPlato = ({
   onToggleCarrito,
   onCambiarPeticion,
 }) => {
+  const agotado = plato.Disponible === "Agotado";
   return (
-    <div
-      className={`vc-tarjeta ${
-        agregado ? "vc-tarjeta-agregada" : ""
-      }`}
-    >
-      <div
-        className="vc-tarjeta-fila"
-        onClick={() => onTogglePlato(plato)}
-      >
-        <div className="vc-tarjeta-img-wrap">
-          <img
-            src={urlImagenPlato(plato)}
-            alt={plato.NombrePlato}
-            className="vc-tarjeta-img"
-          />
+    <div className={`vc-carta-plato ${agregado ? "vc-carta-agregado" : ""} ${agotado ? "vc-carta-agotado" : ""}`}>
+      <div className="vc-carta-fila" onClick={() => !agotado && onTogglePlato(plato)}>
+        <img src={urlImagenPlato(plato)} alt={plato.NombrePlato} className="vc-carta-img" />
+
+        <div className="vc-carta-texto">
+          <div className="vc-carta-linea">
+            <span className="vc-carta-nombre">{plato.NombrePlato}</span>
+            <span className="vc-carta-puntos" aria-hidden="true"></span>
+            <span className="vc-carta-precio">${Number(plato.Precio).toLocaleString("es-CO")}</span>
+          </div>
+          {plato.Descripcion && <p className="vc-carta-desc">{plato.Descripcion}</p>}
         </div>
 
-        <div className="vc-tarjeta-body">
-          <p className="vc-tarjeta-nombre">
-            {plato.NombrePlato}
-          </p>
-
-          <p className="vc-tarjeta-desc">
-            {plato.Descripcion}
-          </p>
-
-          <p className="vc-tarjeta-precio">
-            ${Number(plato.Precio).toLocaleString("es-CO")}
-          </p>
-
-          <div className="vc-tarjeta-bottom">
-            <div
-              className="vc-tarjeta-cantidad"
-              onClick={(e) => e.stopPropagation()}
-            >
+        <div className="vc-carta-acciones" onClick={(e) => e.stopPropagation()}>
+          {agotado ? (
+            <span className="vc-carta-etiqueta-agotado">Agotado</span>
+          ) : (
+            <>
+              <div className="vc-tarjeta-cantidad">
+                <button className="vc-cant-btn" onClick={() => onCambiarCantidad(plato.id_Platos, -1)}>−</button>
+                <span className="vc-cant-num">{cantidad}</span>
+                <button className="vc-cant-btn" onClick={() => onCambiarCantidad(plato.id_Platos, 1)}>+</button>
+              </div>
               <button
-                className="vc-cant-btn"
-                onClick={() =>
-                  onCambiarCantidad(plato.id_Platos, -1)
-                }
+                className={`vc-tarjeta-btn ${agregado ? "vc-tarjeta-btn-quitar" : ""}`}
+                onClick={() => onToggleCarrito(plato)}
               >
-                −
+                {agregado ? "✕" : "+ Agregar"}
               </button>
-
-              <span className="vc-cant-num">
-                {cantidad}
-              </span>
-
-              <button
-                className="vc-cant-btn"
-                onClick={() =>
-                  onCambiarCantidad(plato.id_Platos, 1)
-                }
-              >
-                +
-              </button>
-            </div>
-
-            <button
-              className={`vc-tarjeta-btn ${
-                agregado ? "vc-tarjeta-btn-quitar" : ""
-              }`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleCarrito(plato);
-              }}
-            >
-              {agregado ? "✕" : "+ Agregar al pedido"}
-            </button>
-          </div>
+            </>
+          )}
         </div>
       </div>
 
       {expandida && (
-        <div
-          className="vc-tarjeta-peticion-wrap"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <div className="vc-tarjeta-peticion-wrap" onClick={(e) => e.stopPropagation()}>
           <input
             className="vc-tarjeta-peticion-input"
             type="text"
             placeholder="Peticiones: Ej: sin cebolla..."
             value={peticion}
-            onChange={(e) =>
-              onCambiarPeticion(
-                plato.id_Platos,
-                e.target.value
-              )
-            }
+            onChange={(e) => onCambiarPeticion(plato.id_Platos, e.target.value)}
           />
         </div>
       )}
@@ -140,6 +96,8 @@ function VistaCliente() {
   const location = useLocation();
 
   const [menuDelDia, setMenuDelDia] = useState([]);
+  // Secciones del menú (corriente, comida rápida, bebidas...) en el orden del admin
+  const [seccionesMenu, setSeccionesMenu] = useState([]);
   const [mesaActiva, setMesaActiva] = useState("");
   const [idMesaActiva, setIdMesaActiva] = useState(null);
 
@@ -471,6 +429,7 @@ function VistaCliente() {
         const res = await axios.get(`${API}/api/menu-dia/hoy`);
         if (res.data && Array.isArray(res.data.items)) {
           setMenuDelDia(res.data.items);
+          setSeccionesMenu(Array.isArray(res.data.secciones) ? res.data.secciones : []);
         }
       } catch (error) {
         console.error("Error leyendo menú:", error);
@@ -626,14 +585,6 @@ function VistaCliente() {
    * MENÚ
    * =========================================================
    */
-
-  const platosMenu = menuDelDia.filter(
-    (p) => String(p.id_Categoria) !== "4"
-  );
-
-  const bebidasMenu = menuDelDia.filter(
-    (p) => String(p.id_Categoria) === "4"
-  );
 
   const getCantidad = (id) =>
     cantidades[id] || 1;
@@ -2038,97 +1989,28 @@ function VistaCliente() {
           </label>
         </div>
 
-        {platosMenu.length > 0 && (
-          <section className="vc-seccion">
-            <h2 className="vc-seccion-titulo">
-              Platos
-            </h2>
-
-            <div className="vc-grid">
-              {platosMenu.map(
-                (plato) => (
-                  <TarjetaPlato
-                    key={
-                      plato.id_Platos
-                    }
-                    plato={plato}
-                    agregado={enCarrito(
-                      plato.id_Platos
-                    )}
-                    expandida={
-                      platoAbierto ===
-                      plato.id_Platos
-                    }
-                    cantidad={getCantidad(
-                      plato.id_Platos
-                    )}
-                    peticion={getPeticion(
-                      plato.id_Platos
-                    )}
-                    onTogglePlato={
-                      togglePlato
-                    }
-                    onCambiarCantidad={
-                      cambiarCantidad
-                    }
-                    onToggleCarrito={
-                      toggleCarrito
-                    }
-                    onCambiarPeticion={
-                      cambiarPeticion
-                    }
-                  />
-                )
-              )}
-            </div>
-          </section>
-        )}
-
-        {bebidasMenu.length > 0 && (
-          <section className="vc-seccion">
-            <h2 className="vc-seccion-titulo">
-              Bebidas
-            </h2>
-
-            <div className="vc-grid">
-              {bebidasMenu.map(
-                (plato) => (
-                  <TarjetaPlato
-                    key={
-                      plato.id_Platos
-                    }
-                    plato={plato}
-                    agregado={enCarrito(
-                      plato.id_Platos
-                    )}
-                    expandida={
-                      platoAbierto ===
-                      plato.id_Platos
-                    }
-                    cantidad={getCantidad(
-                      plato.id_Platos
-                    )}
-                    peticion={getPeticion(
-                      plato.id_Platos
-                    )}
-                    onTogglePlato={
-                      togglePlato
-                    }
-                    onCambiarCantidad={
-                      cambiarCantidad
-                    }
-                    onToggleCarrito={
-                      toggleCarrito
-                    }
-                    onCambiarPeticion={
-                      cambiarPeticion
-                    }
-                  />
-                )
-              )}
-            </div>
-          </section>
-        )}
+        {/* La carta del día: una sola hoja con las secciones que armó el admin */}
+        <div className="vc-carta">
+          {seccionesMenu.map((seccion) => (
+            <section key={seccion.id_Seccion} className="vc-carta-seccion">
+              <h2 className="vc-carta-titulo">{seccion.Nombre}</h2>
+              {seccion.platos.map((plato) => (
+                <FilaCarta
+                  key={plato.id_Platos}
+                  plato={plato}
+                  agregado={enCarrito(plato.id_Platos)}
+                  expandida={platoAbierto === plato.id_Platos}
+                  cantidad={getCantidad(plato.id_Platos)}
+                  peticion={getPeticion(plato.id_Platos)}
+                  onTogglePlato={togglePlato}
+                  onCambiarCantidad={cambiarCantidad}
+                  onToggleCarrito={toggleCarrito}
+                  onCambiarPeticion={cambiarPeticion}
+                />
+              ))}
+            </section>
+          ))}
+        </div>
 
         {carrito.length > 0 && (
           <button

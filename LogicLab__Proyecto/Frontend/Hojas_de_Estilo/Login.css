@@ -247,7 +247,8 @@
 
 /* --- CAMPOS --- */
 .login-input-staff,
-.login-select-client {
+.login-select-client,
+.login-input-client {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 50px;
@@ -285,6 +286,26 @@
     border-color: var(--neon-green);
     background-color: rgba(25, 255, 160, 0.06);
     box-shadow: 0 0 0 4px rgba(25, 255, 160, 0.12);
+}
+
+.login-input-client:focus {
+    border-color: var(--neon-green);
+    background: rgba(25, 255, 160, 0.06);
+    box-shadow: 0 0 0 4px rgba(25, 255, 160, 0.12);
+}
+
+.login-client-field-label {
+    color: var(--ink);
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin: 3px 0 8px 4px;
+}
+
+.login-client-field-help {
+    color: var(--ink-dim);
+    font-size: 0.72rem;
+    line-height: 1.4;
+    margin: -5px 4px 10px;
 }
 
 .login-select-client option {
@@ -365,8 +386,55 @@
 
 .login-input-staff:focus-visible,
 .login-select-client:focus-visible,
+.login-input-client:focus-visible,
 .login-button-staff:focus-visible,
 .login-button-client:focus-visible {
     outline: 2px solid var(--neon-blue);
     outline-offset: 2px;
+}
+
+/* --- SOLICITAR REGISTRO --- */
+.login-form-registro { max-width: 460px; }
+
+.login-registro-fila {
+    display: flex;
+    gap: 10px;
+}
+.login-registro-fila > * { flex: 1; min-width: 0; }
+
+.login-select-staff {
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff2c4f' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 18px center;
+    background-size: 16px;
+    padding-right: 44px;
+}
+/* .login-input-staff:focus usa "background:" y borraría la flecha: se repite aquí */
+.login-select-staff:focus {
+    background-color: rgba(255, 44, 79, 0.06);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff2c4f' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 18px center;
+    background-size: 16px;
+}
+.login-select-staff option { background: #111; color: #fff; }
+
+.login-msg-error,
+.login-msg-ok {
+    font-size: 0.8rem;
+    text-align: center;
+    margin: 2px 0 8px;
+}
+.login-msg-error { color: var(--neon-red); }
+.login-msg-ok    { color: var(--neon-green); }
+
+.login-button-staff:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+.login-registro-link { margin-top: 10px; }
+
+@media (max-width: 768px) {
+    .login-registro-fila { flex-direction: column; gap: 0; }
 }

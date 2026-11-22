@@ -3,7 +3,7 @@ import axios from "axios"
 import { LayoutMesero } from "./Panel_Mesero"
 import '../../Hojas_de_Estilo/Mesero.css'
 
-const API = "http://localhost:5030"
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030"
 
 const fmt = n =>
     `$${Number(n || 0).toLocaleString("es-CO")}`

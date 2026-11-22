@@ -4,13 +4,14 @@ import { useNavigate } from "react-router-dom"
 import '../../Hojas_de_Estilo/Login.css'; 
 import '../App.css';
 
-const API = "http://localhost:5030"
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030"
 
 function Login({ setUsuario }) {
   const navigate = useNavigate()
   const [credentials, setCredentials] = useState({ user: "", pass: "" })
   const [mesas, setMesas] = useState([]);
   const [mesaSeleccionada, setMesaSeleccionada] = useState("");
+  const [personas, setPersonas] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -42,6 +43,9 @@ function Login({ setUsuario }) {
     } catch (error) {
       if (error.response?.status === 401) {
         alert("Email o contraseña incorrectos")
+      } else if (error.response?.data?.message) {
+        // 403: "Tu solicitud está pendiente de aprobación." o "Este usuario está inactivo."
+        alert(error.response.data.message)
       } else {
         alert("Error al conectar con el servidor")
       }
@@ -51,7 +55,7 @@ function Login({ setUsuario }) {
   useEffect(() => {
     const obtenerMesas = async () => {
       try {
-        const res = await axios.get("http://localhost:5030/api/mesas/listar");
+        const res = await axios.get(`${API}/api/mesas/listar`);
         setMesas(res.data);
       } catch (error) {
         console.error("Error al traer mesas:", error);
@@ -67,6 +71,12 @@ const handleIngresoCliente = async (e) => {
     return;
   }
 
+  const cantidadPersonas = Number(personas);
+  if (!Number.isInteger(cantidadPersonas) || cantidadPersonas < 1 || cantidadPersonas > 20) {
+    alert("Indica cuántas personas hay en la mesa (entre 1 y 20).");
+    return;
+  }
+
   try {
     const mesaEncontrada = mesas.find(
       m => m.Numero_mesa.toString() === mesaSeleccionada.toString()
@@ -74,11 +84,12 @@ const handleIngresoCliente = async (e) => {
 
     if (mesaEncontrada) {
       await axios.put(
-        `http://localhost:5030/api/mesas/estado/${mesaEncontrada.id_Mesas}`, 
-        { estado: "ocupada" }
+        `${API}/api/mesas/estado/${mesaEncontrada.id_Mesas}`, 
+        { estado: "ocupada", personas: cantidadPersonas }
       );
       
       localStorage.setItem("mesaSeleccionada", mesaSeleccionada);
+      localStorage.setItem("personasMesa", String(cantidadPersonas));
       navigate("/vistacliente");
     } else {
       alert("No se encontró la información de la mesa seleccionada.");
@@ -131,6 +142,10 @@ const handleIngresoCliente = async (e) => {
             <p className="login-forgot-pass" onClick={() => navigate("/recuperar-password")}>
               ¿Olvidaste tu contraseña?
             </p>
+            
+            <p className="login-forgot-pass login-registro-link" onClick={() => navigate("/solicitar-registro")}>
+              ¿Eres empleado nuevo? Solicita tu registro
+            </p>
           </form>
 
           <form className="login-form-client" onSubmit={handleIngresoCliente}>
@@ -161,6 +176,25 @@ const handleIngresoCliente = async (e) => {
                 </option>
               ))}
             </select>
+
+            <label className="login-client-field-label" htmlFor="personas-mesa">
+              ¿Cuántas personas hay en la mesa?
+            </label>
+            <input
+              id="personas-mesa"
+              type="number"
+              min="1"
+              max="20"
+              inputMode="numeric"
+              placeholder="Ej.: 4 personas"
+              value={personas}
+              onChange={(e) => setPersonas(e.target.value)}
+              className="login-input-client"
+              required
+            />
+            <p className="login-client-field-help">
+              Usaremos este dato solo para estimar el tiempo de atención.
+            </p>
 
             <button type="submit" className="login-button-client">
               Ver Menú y Ordenar

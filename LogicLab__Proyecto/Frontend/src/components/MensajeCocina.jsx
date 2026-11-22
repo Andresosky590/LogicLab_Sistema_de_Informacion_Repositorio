@@ -5,7 +5,7 @@ import "../../Hojas_de_Estilo/MensajeCocina.css";
 import "../App.css";
 import { inicializarAudio, reproducirNotificacion } from "./utils/audioHelper";
 
-const API = "http://localhost:5030";
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030";
 
 function MensajeCocina({ usuario}) {
   const navigate = useNavigate()
@@ -48,7 +48,11 @@ function MensajeCocina({ usuario}) {
         `${API}/api/pedidos/estado/listo`
       );
 
-      const pedidos = response.data.map(pedido => {
+      const miId = usuario?.id_Usuarios_Restaurante ?? usuario?.id;
+
+      const pedidos = response.data
+        .filter(p => Number(p.id_Mesero) === Number(miId))
+        .map(pedido => {
 
         const platos = pedido.detalles.filter(
           d => Number(d.id_Categoria) !== 4

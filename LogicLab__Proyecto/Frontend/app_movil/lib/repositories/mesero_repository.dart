@@ -176,12 +176,11 @@ class MeseroRepository {
       throw MeseroException("No se pudo conectar con el servidor.");
     }
     if (response.statusCode != 200) {
-      throw MeseroException("No se pudo tomar el pedido.");
+      final data = _tryDecode(response.body);
+      throw MeseroException(data?['message'] ?? "No se pudo tomar el pedido.");
     }
   }
 
-  // PUT /api/pedidos/estado/:id — mover el pedido de estado (usado para
-  // "Enviar a cocina" (pendiente → preparando) y "Entregar" (listo → entregado)).
   Future<void> cambiarEstadoPedido(int idPedido, String nuevoEstado) async {
     final headers = await _headers(conJson: true);
     late http.Response response;
@@ -195,7 +194,10 @@ class MeseroRepository {
       throw MeseroException("No se pudo conectar con el servidor.");
     }
     if (response.statusCode != 200) {
-      throw MeseroException("No se pudo actualizar el estado del pedido.");
+      final data = _tryDecode(response.body);
+      throw MeseroException(
+        data?['message'] ?? "No se pudo actualizar el estado del pedido.",
+      );
     }
   }
 

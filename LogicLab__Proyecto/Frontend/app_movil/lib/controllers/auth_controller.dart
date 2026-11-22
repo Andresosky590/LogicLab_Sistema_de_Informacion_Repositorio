@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/tipo_documento_model.dart';
 import '../models/usuario_model.dart';
 import '../repositories/auth_repository.dart';
 
@@ -39,6 +40,28 @@ class AuthController {
     String codigo,
     String nuevaPassword,
   ) => _repository.restablecerPassword(email, codigo, nuevaPassword);
+
+  // Solicitud de registro de empleados nuevos (no requiere sesión).
+  Future<List<TipoDocumento>> cargarTiposDocumento() =>
+      _repository.obtenerTiposDocumento();
+
+  Future<String> solicitarRegistro({
+    required String nombre,
+    required String apellido,
+    required String email,
+    required int tipoDocId,
+    required String numeroDocumento,
+    required int rolId,
+    required String password,
+  }) => _repository.solicitarRegistro(
+    nombre: nombre,
+    apellido: apellido,
+    email: email,
+    tipoDocId: tipoDocId,
+    numeroDocumento: numeroDocumento,
+    rolId: rolId,
+    password: password,
+  );
 
   Future<void> cerrarSesion() async {
     final prefs = await SharedPreferences.getInstance();

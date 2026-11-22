@@ -2,12 +2,13 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import axios from "axios"
 import { useNavigate } from "react-router-dom"
 import '../../Hojas_de_Estilo/Mesero.css'
+import '../../Hojas_de_Estilo/MeseroAlertas.css'
 import {
     inicializarAudio,
     reproducirNotificacion
 } from './utils/audioHelper'
 
-const API = "http://localhost:5030"
+const API = import.meta.env.VITE_API_URL ?? "http://localhost:5030"
 
 const fmt = n =>
     `$${Number(n || 0).toLocaleString("es-CO")}`
@@ -76,6 +77,36 @@ const BADGE = {
     }
 }
 
+// Apariencia de cada tipo de alerta (solo visual). El orden va de la
+// más urgente (hay plata pendiente) a la menos urgente.
+const ALERTA_TIPOS = {
+    por_cobrar: {
+        clase: "urgente",
+        icono: "bi-cash-coin",
+        etiqueta: "Por cobrar",
+        orden: 0
+    },
+    sin_pedidos: {
+        clase: "atencion",
+        icono: "bi-hourglass-split",
+        etiqueta: "Sin pedidos",
+        orden: 1
+    },
+    posible_salida: {
+        clase: "salida",
+        icono: "bi-door-open",
+        etiqueta: "Posible salida",
+        orden: 2
+    }
+}
+
+const ALERTA_GENERICA = {
+    clase: "atencion",
+    icono: "bi-exclamation-triangle",
+    etiqueta: "Alerta",
+    orden: 3
+}
+
 const NAV = [
     {
         pagina: "mesero",
@@ -113,6 +144,8 @@ export function LayoutMesero({
 
     const [pedidos, setPedidos] = useState([])
     const [cargando, setCargando] = useState(true)
+    const [alertas, setAlertas] = useState([])
+    const [mostrarAlertas, setMostrarAlertas] = useState(false)
 
     const user =
         usuario ??
@@ -122,6 +155,7 @@ export function LayoutMesero({
 
     const idsActivosAntRef = useRef(null)
     const primeraCargaRef = useRef(true)
+    const idsAlertasAntRef = useRef(null)
 
     const cargar = useCallback(async () => {
         const u =
@@ -161,6 +195,15 @@ export function LayoutMesero({
 
     const verificarPedidosActivos = useCallback(async () => {
         try {
+            const u =
+                usuario ??
+                JSON.parse(
+                    sessionStorage.getItem("usuario") ?? "null"
+                )
+
+            const uid = Number(u?.id_Usuarios_Restaurante ?? u?.id)
+            const propios = p => Number(p.id_Mesero) === uid
+
             const [
                 resPreparando,
                 resListos
@@ -175,12 +218,12 @@ export function LayoutMesero({
 
             const preparando =
                 Array.isArray(resPreparando.data)
-                    ? resPreparando.data
+                    ? resPreparando.data.filter(propios)
                     : []
 
             const listos =
                 Array.isArray(resListos.data)
-                    ? resListos.data
+                    ? resListos.data.filter(propios)
                     : []
 
             const idsAhora = new Set([
@@ -219,7 +262,43 @@ export function LayoutMesero({
                 error
             )
         }
+    }, [usuario])
+
+    const cargarAlertas = useCallback(async () => {
+        try {
+            const res = await axios.get(`${API}/api/notificaciones`)
+            const lista = Array.isArray(res.data) ? res.data : []
+            const idsAhora = new Set(lista.map(a => a.id_Notificaciones))
+
+            // Al entrar no suena por alertas existentes; solo avisa las nuevas.
+            if (idsAlertasAntRef.current !== null) {
+                const hayNueva = [...idsAhora].some(
+                    id => !idsAlertasAntRef.current.has(id)
+                )
+                if (hayNueva) reproducirNotificacion()
+            }
+
+            idsAlertasAntRef.current = idsAhora
+            setAlertas(lista)
+        } catch (error) {
+            console.error("[Mesero] Error cargando alertas de mesas:", error)
+        }
     }, [])
+
+    const atenderAlerta = async id => {
+        try {
+            await axios.put(`${API}/api/notificaciones/${id}/atender`)
+            setAlertas(actuales =>
+                actuales.filter(a => a.id_Notificaciones !== id)
+            )
+        } catch (error) {
+            console.error("[Mesero] Error atendiendo alerta:", error)
+            alert(
+                error.response?.data?.message ||
+                "No se pudo marcar la alerta como atendida."
+            )
+        }
+    }
 
     useEffect(() => {
         if (!user) {
@@ -231,6 +310,7 @@ export function LayoutMesero({
 
         cargar()
         verificarPedidosActivos()
+        cargarAlertas()
 
         const ivHistorial =
             setInterval(cargar, 30000)
@@ -241,15 +321,19 @@ export function LayoutMesero({
                 15000
             )
 
+        const ivAlertas = setInterval(cargarAlertas, 15000)
+
         return () => {
             clearInterval(ivHistorial)
             clearInterval(ivNotificaciones)
+            clearInterval(ivAlertas)
         }
     }, [
         usuario,
         navigate,
         cargar,
-        verificarPedidosActivos
+        verificarPedidosActivos,
+        cargarAlertas
     ])
 
     const cerrarSesion = () => {
@@ -259,9 +343,10 @@ export function LayoutMesero({
             "rol",
             "mesaSeleccionada",
             "idMesero"
-        ].forEach(k =>
+        ].forEach(k => {
             sessionStorage.removeItem(k)
-        )
+            localStorage.removeItem(k)
+        })
 
         delete axios.defaults.headers.common[
             "Authorization"
@@ -329,6 +414,14 @@ export function LayoutMesero({
             },
             {}
         )
+
+    // Solo para mostrar: las más urgentes arriba. El orden es estable,
+    // así que dentro de cada tipo se conserva el orden que manda el backend.
+    const alertasOrdenadas = [...alertas].sort(
+        (a, b) =>
+            (ALERTA_TIPOS[a.Tipo] ?? ALERTA_GENERICA).orden -
+            (ALERTA_TIPOS[b.Tipo] ?? ALERTA_GENERICA).orden
+    )
 
     return (
         <div className="mesero-layout">
@@ -430,6 +523,27 @@ export function LayoutMesero({
                             </span>
                         </button>
                     ))}
+
+                    <button
+                        type="button"
+                        className={`mesero-nav-btn mesero-nav-alertas${alertas.length > 0 ? " mesero-nav-alertas-activo" : ""}${mostrarAlertas ? " mesero-nav-alertas-abierto" : ""}`}
+                        onClick={() => setMostrarAlertas(abierto => !abierto)}
+                        aria-haspopup="dialog"
+                        aria-expanded={mostrarAlertas}
+                    >
+                        <i className="bi bi-exclamation-triangle"></i>
+                        <span className="mesero-nav-texto">
+                            Alertas de mesas
+                        </span>
+                        {alertas.length > 0 && (
+                            <span
+                                className="mesero-alertas-contador"
+                                aria-label={`${alertas.length} alertas activas`}
+                            >
+                                {alertas.length > 99 ? "99+" : alertas.length}
+                            </span>
+                        )}
+                    </button>
                 </nav>
 
                 <button
@@ -479,6 +593,123 @@ export function LayoutMesero({
             <main className="mesero-main">
                 {children}
             </main>
+
+            {mostrarAlertas && (
+                <>
+                    <div
+                        className="mesero-alertas-fondo"
+                        onClick={() => setMostrarAlertas(false)}
+                        aria-hidden="true"
+                    ></div>
+
+                    <section
+                        className="mesero-alertas-panel"
+                        role="dialog"
+                        aria-label="Alertas de mesas"
+                    >
+                        <header className="mesero-alertas-cabecera">
+                            <span className="mesero-alertas-cabecera-icono">
+                                <i className="bi bi-exclamation-triangle"></i>
+                            </span>
+
+                            <div className="mesero-alertas-cabecera-texto">
+                                <h2>Alertas de mesas</h2>
+                                <p>Revisa la mesa antes de liberarla.</p>
+                            </div>
+
+                            {alertas.length > 0 && (
+                                <span className="mesero-alertas-total">
+                                    {alertas.length}
+                                </span>
+                            )}
+
+                            <button
+                                type="button"
+                                className="mesero-alertas-cerrar"
+                                onClick={() => setMostrarAlertas(false)}
+                                aria-label="Cerrar alertas"
+                            >
+                                <i className="bi bi-x-lg"></i>
+                            </button>
+                        </header>
+
+                        <div className="mesero-alertas-lista">
+                            {alertas.length === 0 ? (
+                                <div className="mesero-alertas-vacio">
+                                    <i className="bi bi-check2-circle"></i>
+                                    <p>No hay alertas pendientes.</p>
+                                </div>
+                            ) : alertasOrdenadas.map(alerta => {
+                                const tipo =
+                                    ALERTA_TIPOS[alerta.Tipo] ??
+                                    ALERTA_GENERICA
+
+                                const minutos = Number(alerta.MinutosDesde)
+
+                                return (
+                                    <article
+                                        key={alerta.id_Notificaciones}
+                                        className={`mesero-alerta mesero-alerta-${tipo.clase}`}
+                                    >
+                                        <div className="mesero-alerta-cuerpo">
+                                            <span className="mesero-alerta-icono">
+                                                <i className={`bi ${tipo.icono}`}></i>
+                                            </span>
+
+                                            <div className="mesero-alerta-info">
+                                                <div className="mesero-alerta-meta">
+                                                    <span className="mesero-alerta-etiqueta">
+                                                        {tipo.etiqueta}
+                                                    </span>
+
+                                                    {alerta.MinutosDesde != null &&
+                                                        Number.isFinite(minutos) && (
+                                                        <span className="mesero-alerta-tiempo">
+                                                            <i className="bi bi-clock-history"></i>
+                                                            hace {minutos} min
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <strong className="mesero-alerta-titulo">
+                                                    {alerta.Titulo}
+                                                </strong>
+
+                                                <p className="mesero-alerta-mensaje">
+                                                    {alerta.Mensaje}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mesero-alerta-acciones">
+                                            <button
+                                                type="button"
+                                                className="mesero-alerta-btn mesero-alerta-btn-ir"
+                                                onClick={() => {
+                                                    setMostrarAlertas(false)
+                                                    navigate("/mesero")
+                                                }}
+                                            >
+                                                <i className="bi bi-geo-alt-fill"></i>
+                                                Ir a mesa {alerta.Numero_mesa}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                className="mesero-alerta-btn mesero-alerta-btn-ok"
+                                                onClick={() => atenderAlerta(alerta.id_Notificaciones)}
+                                            >
+                                                <i className="bi bi-check2-circle"></i>
+                                                Marcar atendida
+                                            </button>
+                                        </div>
+                                    </article>
+                                )
+                            })}
+                        </div>
+                    </section>
+                </>
+            )}
 
             <aside className="mesero-historial">
 

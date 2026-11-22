@@ -42,10 +42,10 @@ class _MeseroMensajesClienteScreenState
   String? _error;
   List<PedidoMesero> _pedidos = [];
   final Set<int> _procesando = {};
+  int? _miId;
 
-  // Mismo mecanismo que ya usan mesero_mensajes_cocina_screen.dart y
-  // cocinero_pedidos_screen.dart: solo se alerta por pedidos que no
-  // se habían mostrado antes (nunca en la primera carga).
+  // Solo se alerta por pedidos que no se habían mostrado antes
+  // (nunca en la primera carga).
   final Set<int> _idsConocidos = {};
   final Set<int> _idsRecientes = {};
   bool _primeraCarga = true;
@@ -53,10 +53,10 @@ class _MeseroMensajesClienteScreenState
   @override
   void initState() {
     super.initState();
+    _controller.obtenerIdUsuario().then((id) {
+      if (mounted) setState(() => _miId = id);
+    });
     _cargar();
-    // BUGFIX: antes esta pantalla solo cargaba una vez al entrar — un
-    // pedido nuevo de un cliente no aparecía hasta que el mesero
-    // saliera y volviera a entrar a mano. Ahora hace polling cada 4s.
     _polling = Timer.periodic(
       const Duration(seconds: 4),
       (_) => _cargar(silencioso: true),
@@ -85,9 +85,8 @@ class _MeseroMensajesClienteScreenState
 
       final pedidos = [...resultados[0], ...resultados[1]];
 
-      // Solo se avisa por pedidos "pendiente" nuevos: esos son los
-      // que un cliente acaba de mandar sin que ningún mesero lo haya
-      // tomado todavía — los "preparando" ya fueron vistos por alguien.
+      // Solo se avisa por pedidos "pendiente" nuevos: son los que un
+      // cliente acaba de mandar sin que ningún mesero lo haya tomado.
       if (!_primeraCarga) {
         final nuevos = resultados[0]
             .where((p) => !_idsConocidos.contains(p.id))
@@ -144,6 +143,46 @@ class _MeseroMensajesClienteScreenState
     );
   }
 
+  // ==============================================================
+  // RESTRICCIÓN: el pedido debe estar tomado por el mesero logueado
+  // ==============================================================
+
+  bool _esMio(PedidoMesero p) => p.idMesero != null && p.idMesero == _miId;
+
+  void _mostrarAviso(String mensaje) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF161616),
+        title: Text(
+          "Aviso",
+          style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 15),
+        ),
+        content: Text(
+          mensaje,
+          style: GoogleFonts.inter(color: _mMuted, fontSize: 12.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("Entendido", style: TextStyle(color: _mNaranja)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // true si el mesero logueado puede seguir; si no, muestra el aviso.
+  bool _exigirPedidoTomado(PedidoMesero p) {
+    if (_esMio(p)) return true;
+    _mostrarAviso(
+      p.idMesero != null
+          ? "🔒 Este pedido lo atiende ${p.nombreMesero ?? "otro mesero"}.\n\nSolo ese mesero puede modificarlo, cobrarlo, cancelarlo o enviarlo a cocina."
+          : "⚠️ Primero debes tomar el pedido.\n\nToca \"Tomar pedido\" en esta tarjeta antes de continuar.",
+    );
+    return false;
+  }
+
   Future<void> _accion(int id, Future<void> Function() accion) async {
     setState(() => _procesando.add(id));
     try {
@@ -154,6 +193,9 @@ class _MeseroMensajesClienteScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString()), backgroundColor: _mRojo),
       );
+      // Si el servidor rechazó la acción (p. ej. otro mesero tomó el
+      // pedido primero), se refresca para mostrar el estado real.
+      await _cargar(silencioso: true);
     } finally {
       if (mounted) setState(() => _procesando.remove(id));
     }
@@ -162,15 +204,25 @@ class _MeseroMensajesClienteScreenState
   // Suena de inmediato al tocar el botón — no espera al polling de la
   // pantalla de cocina para confirmarle al mesero que sí se envió.
   void _enviarACocina(PedidoMesero p) {
+    if (!_exigirPedidoTomado(p)) return;
     HapticFeedback.mediumImpact();
     NotificacionSonido.reproducir();
     _accion(p.id, () => _controller.enviarACocina(p.id));
   }
 
   Future<void> _tomarPedido(PedidoMesero p) async {
-    final mensaje = p.nombreMesero != null
-        ? "Este pedido está asignado a ${p.nombreMesero}. ¿Tomarlo de todas formas?"
-        : "¿Tomar este pedido?";
+    if (_esMio(p)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Este pedido ya es tuyo.")));
+      return;
+    }
+    if (p.idMesero != null) {
+      _mostrarAviso(
+        "🔒 Este pedido ya fue tomado por ${p.nombreMesero ?? "otro mesero"}.\n\nSolo ese mesero puede atenderlo.",
+      );
+      return;
+    }
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -180,7 +232,7 @@ class _MeseroMensajesClienteScreenState
           style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 15),
         ),
         content: Text(
-          mensaje,
+          "¿Tomar este pedido?",
           style: GoogleFonts.inter(color: _mMuted, fontSize: 12.5),
         ),
         actions: [
@@ -199,6 +251,7 @@ class _MeseroMensajesClienteScreenState
   }
 
   Future<void> _cancelarPedido(PedidoMesero p) async {
+    if (!_exigirPedidoTomado(p)) return;
     final motivoCtrl = TextEditingController();
     final motivo = await showModalBottomSheet<String>(
       context: context,
@@ -283,6 +336,7 @@ class _MeseroMensajesClienteScreenState
       );
       return;
     }
+    if (!_exigirPedidoTomado(p)) return;
     // El editor detallado hace sus cambios directo contra el backend
     // (uno por uno, ver mesero_editar_pedido_screen.dart) — al volver
     // solo hace falta refrescar la lista para ver el resultado.
@@ -292,6 +346,21 @@ class _MeseroMensajesClienteScreenState
       ),
     );
     await _cargar();
+  }
+
+  Future<void> _cobrarEnPersona(PedidoMesero p) async {
+    if (!_exigirPedidoTomado(p)) return;
+    final metodo = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF121212),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (_) => _HojaCobrarPresencial(pedido: p),
+    );
+    if (metodo == null) return;
+
+    _accion(p.id, () => _controller.marcarPagoPresencial(p.id, metodo));
   }
 
   @override
@@ -376,6 +445,25 @@ class _MeseroMensajesClienteScreenState
   Widget _tarjeta(PedidoMesero p) {
     final procesando = _procesando.contains(p.id);
     final esReciente = _idsRecientes.contains(p.id);
+    final mio = _esMio(p);
+    final tomadoPorOtro = p.idMesero != null && !mio;
+
+    final Color chipFondo = mio
+        ? const Color(0x2619A971)
+        : tomadoPorOtro
+        ? const Color(0x14FFFFFF)
+        : _mNaranjaSoft;
+    final Color chipTexto = mio
+        ? const Color(0xFF19A971)
+        : tomadoPorOtro
+        ? const Color(0xFFAAAAAA)
+        : _mNaranja;
+    final String chipLabel = mio
+        ? "✔ Tomado por ti"
+        : tomadoPorOtro
+        ? "🔒 Tomado por ${p.nombreMesero ?? "otro mesero"}"
+        : "Tomar pedido";
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -438,19 +526,13 @@ class _MeseroMensajesClienteScreenState
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: p.nombreMesero != null
-                        ? const Color(0x2619A971)
-                        : const Color(0x14FFFFFF),
+                    color: chipFondo,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    p.nombreMesero != null
-                        ? "Tomado por ${p.nombreMesero}"
-                        : "Tomar pedido",
+                    chipLabel,
                     style: GoogleFonts.inter(
-                      color: p.nombreMesero != null
-                          ? const Color(0xFF19A971)
-                          : Colors.white,
+                      color: chipTexto,
                       fontSize: 10.5,
                       fontWeight: FontWeight.w600,
                     ),
@@ -467,115 +549,129 @@ class _MeseroMensajesClienteScreenState
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          if (p.platos.isNotEmpty) ..._grupo("Platos", p.platos),
-          if (p.bebidas.isNotEmpty) ..._grupo("Bebidas", p.bebidas),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: (procesando || p.estadoPedido != "pendiente")
-                      ? null
-                      : () => _modificarPedido(p),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: _mNaranja),
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                  ),
-                  child: Text(
-                    "Modificar",
-                    style: GoogleFonts.inter(
-                      color: _mNaranja,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: procesando ? null : () => _cancelarPedido(p),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: _mRojo),
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                  ),
-                  child: Text(
-                    "Cancelar",
-                    style: GoogleFonts.inter(
-                      color: _mRojo,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (p.estadoPedido == "pendiente") ...[
-            if (!p.pagoAprobado) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: procesando ? null : () => _cobrarEnPersona(p),
-                  icon: const Icon(
-                    Icons.payments_outlined,
-                    size: 16,
-                    color: _mAmarillo,
-                  ),
-                  label: Text(
-                    "Cobrar aquí (opcional, si el cliente ya te va a pagar)",
-                    style: GoogleFonts.inter(
-                      color: _mAmarillo,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: _mAmarillo),
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            SizedBox(
+          if (!mio) ...[
+            const SizedBox(height: 10),
+            Container(
               width: double.infinity,
-              child: ElevatedButton(
-                // El pago ya NO es requisito para mandar a cocina — el
-                // cliente paga después, mientras su pedido se prepara.
-                onPressed: procesando ? null : () => _enviarACocina(p),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _mNaranja,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  disabledBackgroundColor: _mNaranja.withValues(alpha: 0.25),
-                ),
-                child: Text(
-                  procesando ? "..." : "Enviar a cocina",
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: _mNaranjaSoft,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                tomadoPorOtro
+                    ? "🔒 Este pedido lo atiende ${p.nombreMesero ?? "otro mesero"}. Solo puedes verlo."
+                    : "⚠️ Toma este pedido para poder modificarlo, cobrarlo o enviarlo a cocina.",
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  color: _mNaranja,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
           ],
+          const SizedBox(height: 10),
+          if (p.platos.isNotEmpty) ..._grupo("Platos", p.platos),
+          if (p.bebidas.isNotEmpty) ..._grupo("Bebidas", p.bebidas),
+          const SizedBox(height: 10),
+          // Atenuado pero tocable a propósito: al tocar sin haber
+          // tomado el pedido sale el aviso de _exigirPedidoTomado.
+          Opacity(
+            opacity: mio ? 1 : 0.45,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: (procesando || p.estadoPedido != "pendiente")
+                            ? null
+                            : () => _modificarPedido(p),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: _mNaranja),
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                        ),
+                        child: Text(
+                          "Modificar",
+                          style: GoogleFonts.inter(
+                            color: _mNaranja,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: procesando ? null : () => _cancelarPedido(p),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: _mRojo),
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                        ),
+                        child: Text(
+                          "Cancelar",
+                          style: GoogleFonts.inter(
+                            color: _mRojo,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (p.estadoPedido == "pendiente") ...[
+                  if (!p.pagoAprobado) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: procesando ? null : () => _cobrarEnPersona(p),
+                      icon: const Icon(
+                        Icons.payments_outlined,
+                        size: 16,
+                        color: _mAmarillo,
+                      ),
+                      label: Text(
+                        "Cobrar aquí (opcional, si el cliente ya te va a pagar)",
+                        style: GoogleFonts.inter(
+                          color: _mAmarillo,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: _mAmarillo),
+                        padding: const EdgeInsets.symmetric(vertical: 9),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  // El pago NO es requisito para mandar a cocina — el
+                  // cliente paga después, mientras se prepara.
+                  ElevatedButton(
+                    onPressed: procesando ? null : () => _enviarACocina(p),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _mNaranja,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      disabledBackgroundColor: _mNaranja.withValues(
+                        alpha: 0.25,
+                      ),
+                    ),
+                    child: Text(
+                      procesando ? "..." : "Enviar a cocina",
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
-  }
-
-  Future<void> _cobrarEnPersona(PedidoMesero p) async {
-    final metodo = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: const Color(0xFF121212),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (_) => _HojaCobrarPresencial(pedido: p),
-    );
-    if (metodo == null) return;
-
-    _accion(p.id, () => _controller.marcarPagoPresencial(p.id, metodo));
   }
 
   List<Widget> _grupo(String titulo, List<ItemPedidoMesero> items) {

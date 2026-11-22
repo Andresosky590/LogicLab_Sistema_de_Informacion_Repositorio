@@ -8,6 +8,7 @@ import '../screens/mesero_mensajes_cliente_screen.dart';
 import '../screens/mesero_mensajes_cocina_screen.dart';
 import '../screens/mesero_pedido_asistido_screen.dart';
 import '../screens/mesero_pedidos_screen.dart';
+import '../screens/mesero_alertas_screen.dart';
 
 // ================================================================
 // COLORES — el mismo naranja que usa Panel_Mesero.jsx (#e87d2a) en
@@ -55,6 +56,8 @@ class MeseroDrawer extends StatelessWidget {
         pantalla = const MeseroMensajesCocinaScreen();
       case "Mis pedidos":
         pantalla = const MeseroPedidosScreen();
+      case "Alertas de mesas":
+        pantalla = const MeseroAlertasScreen();
       default:
         return;
     }
@@ -130,6 +133,12 @@ class MeseroDrawer extends StatelessWidget {
               label: "Mensajes cocina",
               activo: seccionActiva == "Mensajes cocina",
               onTap: () => _ir(context, "Mensajes cocina"),
+            ),
+            _Item(
+              icono: Icons.notification_important_outlined,
+              label: "Alertas de mesas",
+              activo: seccionActiva == "Alertas de mesas",
+              onTap: () => _ir(context, "Alertas de mesas"),
             ),
             _Item(
               icono: Icons.receipt_long_outlined,

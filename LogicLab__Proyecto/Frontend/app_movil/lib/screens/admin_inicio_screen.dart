@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../controllers/admin_controller.dart';
+import '../controllers/empleado_controller.dart';
 import '../models/menu_dia_model.dart';
 import '../models/pqrsf_model.dart';
 import '../widgets/admin_drawer.dart';
+import 'empleados_screen.dart';
 
 // ================================================================
 // COLORES
@@ -35,6 +37,8 @@ class AdminHomeScreen extends StatefulWidget {
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
   final _adminController = AdminController();
+  final _empleadoController = EmpleadoController();
+  int _solicitudesPendientes = 0;
 
   Timer? _polling;
 
@@ -68,6 +72,10 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   // ==============================================================
 
   Future<void> _cargarDashboard({bool silencioso = false}) async {
+    // Las solicitudes se cargan aparte (sin await): si fallan,
+    // el resto del panel se sigue mostrando normal.
+    _cargarSolicitudes();
+
     if (!silencioso) {
       setState(() {
         _cargando = true;
@@ -92,6 +100,20 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         _error = e.toString().replaceFirst("AdminException: ", "");
         _cargando = false;
       });
+    }
+  }
+
+  // ==============================================================
+  // CARGAR SOLICITUDES DE REGISTRO PENDIENTES
+  // ==============================================================
+
+  Future<void> _cargarSolicitudes() async {
+    try {
+      final lista = await _empleadoController.cargarSolicitudes();
+      if (!mounted) return;
+      setState(() => _solicitudesPendientes = lista.length);
+    } catch (_) {
+      // Si falla, se deja el último valor conocido.
     }
   }
 
@@ -285,6 +307,28 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
             valor: "${data.entregadosHoy}",
           ),
 
+          const SizedBox(height: 10),
+
+          // ========================================================
+          // SOLICITUDES DE REGISTRO
+          // ========================================================
+          // Al tocarla abre Empleados, donde se aprueban o descartan;
+          // al volver se actualiza el contador.
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const EmpleadosScreen()),
+              );
+              _cargarSolicitudes();
+            },
+            child: _StatCard(
+              icono: Icons.person_add_alt_1_outlined,
+              label: "Solicitudes de registro pendientes",
+              valor: "$_solicitudesPendientes",
+            ),
+          ),
+
           const SizedBox(height: 16),
 
           // ========================================================
@@ -350,23 +394,12 @@ class _MenuDiaCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
 
                   children: [
-                    if (menu!.items.any((i) => i.esCorriente))
+                    // Secciones en el orden que armó el admin
+                    for (final seccion in menu!.secciones)
                       _MenuDiaGrupo(
-                        etiqueta: "Corriente del Día",
-                        lineas: [
-                          menu!.items
-                                  .firstWhere((i) => i.esCorriente)
-                                  .descripcion ??
-                              "",
-                        ],
-                      ),
-
-                    if (menu!.items.any((i) => !i.esCorriente))
-                      _MenuDiaGrupo(
-                        etiqueta: "Platos y Bebidas",
-                        lineas: menu!.items
-                            .where((i) => !i.esCorriente)
-                            .map((i) => i.nombrePlato)
+                        etiqueta: seccion.nombre,
+                        lineas: seccion.platos
+                            .map((p) => p.nombrePlato)
                             .toList(),
                       ),
                   ],
@@ -614,7 +647,8 @@ class _PqrsfCard extends StatelessWidget {
           ? const _EmptyPlaceholder(
               icono: Icons.forum_outlined,
               texto: "Aún no hay registros",
-              subtexto: "Los mensajes que envíen los clientes desde la mesa aparecerán aquí",
+              subtexto:
+                  "Los mensajes que envíen los clientes desde la mesa aparecerán aquí",
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,

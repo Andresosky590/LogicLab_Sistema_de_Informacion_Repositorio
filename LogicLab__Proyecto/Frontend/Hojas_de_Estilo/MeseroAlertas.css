@@ -1,0 +1,441 @@
+/* =============================================
+   PANEL MESERO — ALERTAS DE MESAS
+   Usa las variables de Mesero.css (--m-*).
+   ============================================= */
+
+/* ── Botón del menú lateral ── */
+.mesero-nav-alertas .bi {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+
+/* El menú mide 210px: se ajusta el espacio para que el texto y el
+   contador quepan en una sola línea. */
+.mesero-nav-alertas {
+    gap: 10px;
+    padding-left: 12px;
+    padding-right: 10px;
+}
+
+.mesero-nav-alertas .mesero-nav-texto {
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.mesero-nav-alertas-activo .bi {
+    color: #f39a3f;
+}
+
+.mesero-nav-alertas-abierto {
+    background: rgba(232, 125, 42, 0.14) !important;
+    color: var(--m-text) !important;
+}
+
+/* ── Contador rojo ── */
+.mesero-alertas-contador {
+    margin-left: auto;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, #ff6b5a, var(--m-rojo));
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55), 0 0 12px rgba(231, 76, 60, 0.45);
+    animation: mesero-alertas-latido 2.4s ease-in-out infinite;
+}
+
+@keyframes mesero-alertas-latido {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55), 0 0 8px rgba(231, 76, 60, 0.35); }
+    50%      { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.55), 0 0 16px rgba(231, 76, 60, 0.7); }
+}
+
+/* ── Fondo (solo se ve en pantallas pequeñas) ── */
+.mesero-alertas-fondo {
+    display: none;
+}
+
+/* ── Panel flotante ── */
+.mesero-alertas-panel {
+    position: fixed;
+    z-index: 20;
+    left: 224px;
+    top: 24px;
+    width: min(392px, calc(100vw - 244px));
+    max-height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(28, 21, 15, 0.98), rgba(14, 12, 11, 0.98));
+    border: 1px solid rgba(232, 125, 42, 0.38);
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(10px);
+    animation: mesero-alertas-entrada 0.18s ease-out;
+}
+
+.mesero-alertas-panel::before {
+    content: "";
+    height: 2px;
+    flex-shrink: 0;
+    background: linear-gradient(90deg, transparent, var(--m-naranja), transparent);
+}
+
+@keyframes mesero-alertas-entrada {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Cabecera ── */
+.mesero-alertas-cabecera {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 16px 14px;
+    border-bottom: 1px solid var(--m-border);
+    flex-shrink: 0;
+}
+
+.mesero-alertas-cabecera-icono {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: rgba(232, 125, 42, 0.14);
+    border: 1px solid rgba(232, 125, 42, 0.35);
+    color: #f39a3f;
+    font-size: 1.05rem;
+}
+
+.mesero-alertas-cabecera-texto {
+    flex: 1;
+    min-width: 0;
+}
+
+.mesero-alertas-cabecera-texto h2 {
+    margin: 0;
+    color: var(--m-naranja);
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+}
+
+.mesero-alertas-cabecera-texto p {
+    margin: 3px 0 0;
+    color: var(--m-muted);
+    font-size: 0.74rem;
+    line-height: 1.35;
+}
+
+.mesero-alertas-total {
+    min-width: 24px;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: rgba(231, 76, 60, 0.16);
+    border: 1px solid rgba(231, 76, 60, 0.4);
+    color: #ff7d6e;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.mesero-alertas-cerrar {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--m-border);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #bbb;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.mesero-alertas-cerrar:hover {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--m-text);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Lista ── */
+.mesero-alertas-lista {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px 14px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.mesero-alertas-lista::-webkit-scrollbar { width: 4px; }
+.mesero-alertas-lista::-webkit-scrollbar-thumb { background: var(--m-naranja); border-radius: 4px; }
+
+.mesero-alertas-lista::after {
+    content: "";
+    flex-shrink: 0;
+    height: 8px;
+}
+
+/* ── Estado vacío ── */
+.mesero-alertas-vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 26px 10px 30px;
+    text-align: center;
+}
+
+.mesero-alertas-vacio .bi {
+    font-size: 2rem;
+    color: var(--m-verde);
+    opacity: 0.8;
+}
+
+.mesero-alertas-vacio p {
+    margin: 0;
+    color: var(--m-muted);
+    font-size: 0.85rem;
+}
+
+/* ── Tarjeta de alerta ── */
+.mesero-alerta {
+    --tono: var(--m-naranja);
+    --tono-suave: rgba(232, 125, 42, 0.12);
+    --tono-borde: rgba(232, 125, 42, 0.3);
+
+    padding: 13px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--tono-suave), rgba(255, 255, 255, 0.025) 70%);
+    border: 1px solid var(--tono-borde);
+    border-left: 3px solid var(--tono);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.mesero-alerta:hover {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* Urgente: hay plata pendiente */
+.mesero-alerta-urgente {
+    --tono: var(--m-rojo);
+    --tono-suave: rgba(231, 76, 60, 0.13);
+    --tono-borde: rgba(231, 76, 60, 0.35);
+}
+
+/* Atención: mesa ocupada sin actividad */
+.mesero-alerta-atencion {
+    --tono: var(--m-naranja);
+    --tono-suave: rgba(232, 125, 42, 0.12);
+    --tono-borde: rgba(232, 125, 42, 0.32);
+}
+
+/* Salida: todo pagado, la mesa podría quedar libre */
+.mesero-alerta-salida {
+    --tono: var(--m-verde);
+    --tono-suave: rgba(46, 204, 113, 0.11);
+    --tono-borde: rgba(46, 204, 113, 0.3);
+}
+
+.mesero-alerta-cuerpo {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.mesero-alerta-icono {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--tono-suave);
+    border: 1px solid var(--tono-borde);
+    color: var(--tono);
+    font-size: 1rem;
+}
+
+.mesero-alerta-urgente .mesero-alerta-icono {
+    animation: mesero-alerta-pulso 2s ease-in-out infinite;
+}
+
+@keyframes mesero-alerta-pulso {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.35); }
+    50%      { box-shadow: 0 0 0 6px rgba(231, 76, 60, 0); }
+}
+
+.mesero-alerta-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.mesero-alerta-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.mesero-alerta-etiqueta {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--tono-suave);
+    border: 1px solid var(--tono-borde);
+    color: var(--tono);
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+}
+
+.mesero-alerta-tiempo {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--m-muted);
+    font-size: 0.68rem;
+}
+
+.mesero-alerta-titulo {
+    display: block;
+    color: var(--m-text);
+    font-size: 0.9rem;
+    line-height: 1.3;
+}
+
+.mesero-alerta-mensaje {
+    margin: 6px 0 0;
+    color: #c9c9c9;
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+/* ── Botones de la tarjeta ── */
+.mesero-alerta-acciones {
+    display: flex;
+    gap: 8px;
+    margin-top: 13px;
+}
+
+.mesero-alerta-btn {
+    flex: 1;
+    min-height: 36px;
+    padding: 8px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, filter 0.2s, transform 0.1s;
+}
+
+.mesero-alerta-btn:active {
+    transform: scale(0.98);
+}
+
+.mesero-alerta-btn-ir {
+    border: 1px solid rgba(232, 125, 42, 0.55);
+    background: transparent;
+    color: #f39a3f;
+}
+
+.mesero-alerta-btn-ir:hover {
+    background: rgba(232, 125, 42, 0.13);
+}
+
+.mesero-alerta-btn-ok {
+    border: 0;
+    background: var(--m-naranja);
+    color: #17110b;
+}
+
+.mesero-alerta-btn-ok:hover {
+    filter: brightness(1.12);
+}
+
+.mesero-alertas-cerrar:focus-visible,
+.mesero-alerta-btn:focus-visible,
+.mesero-nav-alertas:focus-visible {
+    outline: 2px solid #f39a3f;
+    outline-offset: 2px;
+}
+
+/* ── Pantallas pequeñas: el panel pasa a ser una hoja inferior ── */
+@media (max-width: 850px) {
+
+    .mesero-alertas-fondo {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 19;
+        background: rgba(0, 0, 0, 0.62);
+        animation: mesero-alertas-fade 0.18s ease-out;
+    }
+
+    .mesero-alertas-panel {
+        left: 12px;
+        right: 12px;
+        top: auto;
+        bottom: 12px;
+        width: auto;
+        max-height: min(78vh, 640px);
+        border-radius: 18px;
+        animation: mesero-alertas-sube 0.22s ease-out;
+    }
+}
+
+@media (max-width: 480px) {
+
+    .mesero-alertas-panel {
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+    }
+
+    .mesero-alerta-acciones {
+        flex-direction: column;
+    }
+
+    .mesero-alerta-btn {
+        min-height: 42px;
+        font-size: 0.8rem;
+    }
+}
+
+@keyframes mesero-alertas-fade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes mesero-alertas-sube {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mesero-alertas-contador,
+    .mesero-alerta-urgente .mesero-alerta-icono,
+    .mesero-alertas-panel,
+    .mesero-alertas-fondo {
+        animation: none;
+    }
+}

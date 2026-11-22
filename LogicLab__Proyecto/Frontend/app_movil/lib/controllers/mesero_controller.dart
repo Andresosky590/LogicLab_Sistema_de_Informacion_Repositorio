@@ -58,6 +58,8 @@ class MeseroController {
   Future<List<PedidoMesero>> cargarPorEstado(String estado) =>
       _repository.obtenerPorEstado(estado);
 
+  Future<int?> obtenerIdUsuario() => _repository.obtenerIdUsuario();
+
   Future<void> tomarPedido(int idPedido) => _repository.tomarPedido(idPedido);
 
   Future<void> enviarACocina(int idPedido) =>
