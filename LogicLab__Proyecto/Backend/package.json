@@ -5,15 +5,19 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "swagger": "node swagger.js"
+    "swagger": "node swagger.js",
+    "test": "jest --runInBand",
+    "test:cobertura": "jest --runInBand --coverage"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "jest": "^29.7.0",
     "json-server": "^0.17.4",
     "json-server-auth": "^2.1.0",
+    "supertest": "^7.3.2",
     "swagger-autogen": "^2.7.7"
   },
   "dependencies": {

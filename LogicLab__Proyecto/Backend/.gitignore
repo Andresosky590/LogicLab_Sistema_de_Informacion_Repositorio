@@ -16,3 +16,6 @@ uploads/
 npm-debug.log*
 .DS_Store
 Thumbs.db
+
+# Informe de cobertura de Jest (se genera con npm run test:cobertura)
+coverage/
