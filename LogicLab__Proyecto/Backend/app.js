@@ -87,11 +87,11 @@ app.put('/api/notificaciones/:id/atender', verificarToken, NotificacionControlle
 
 app.get('/api/platos/listar', verificarToken, PlatoController.getPlatos);
 app.get('/api/categorias/listar', verificarToken, PlatoController.getCategorias);
-app.put('/api/platos/actualizar/:id', verificarToken, PlatoController.updatePlato);
-app.post('/api/platos/agregar', verificarToken, PlatoController.createPlato);
-app.delete('/api/platos/eliminar/:id', verificarToken, PlatoController.deletePlato);
-app.put('/api/platos/disponibilidad/:id', verificarToken, PlatoController.toggleDisponibilidad);
-app.post('/api/platos/:id/imagen', verificarToken, uploadImagen.single('imagen'), PlatoController.subirImagen);
+app.put('/api/platos/actualizar/:id', verificarToken, soloAdmin, PlatoController.updatePlato);
+app.post('/api/platos/agregar', verificarToken, soloAdmin, PlatoController.createPlato);
+app.delete('/api/platos/eliminar/:id', verificarToken, soloAdmin, PlatoController.deletePlato);
+app.put('/api/platos/disponibilidad/:id', verificarToken, soloAdmin, PlatoController.toggleDisponibilidad);
+app.post('/api/platos/:id/imagen', verificarToken, soloAdmin, uploadImagen.single('imagen'), PlatoController.subirImagen);
     
 app.get('/api/pedidos/listar', verificarToken, PedidoController.getPedidos);
 app.put('/api/pedidos/estado/:id', verificarToken, soloAlEnviarACocina, PedidoController.actualizarEstado);
